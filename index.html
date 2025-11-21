@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>ProTranslate v34 - 語音嚴格鎖定版</title>
+    <title>ProTranslate v39 - 長文專業版</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src='https://unpkg.com/tesseract.js@v5/dist/tesseract.min.js'></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -64,8 +64,8 @@
     <div class="bg-white shadow-sm z-20 shrink-0">
         <div class="flex justify-between items-center px-4 py-3 border-b border-slate-100">
             <div class="flex items-center gap-2 text-blue-600 font-bold text-lg">
-                <i class="fa-solid fa-volume-high"></i>
-                <span>ProTranslate <span class="text-[10px] bg-blue-50 text-blue-600 px-1.5 rounded ml-1 align-top">v34</span></span>
+                <i class="fa-solid fa-book-open"></i>
+                <span>ProTranslate <span class="text-[10px] bg-blue-50 text-blue-600 px-1.5 rounded ml-1 align-top">v39</span></span>
             </div>
             <div class="flex items-center bg-slate-100 rounded-lg p-1 gap-1 text-sm">
                 <select id="sourceLang" class="bg-transparent font-bold text-slate-700 outline-none px-2 py-1 cursor-pointer w-24">
@@ -93,10 +93,10 @@
     <div id="main-container" class="flex-1 overflow-y-auto custom-scroll p-4 space-y-4 bg-[#f8fafc] pb-32 relative" onclick="closeKeyboard()">
         <div id="welcome-msg" class="flex flex-col items-center justify-center h-full text-slate-400 text-center opacity-60">
             <div class="relative mb-4">
-                <i class="fa-solid fa-lock text-5xl"></i>
+                <i class="fa-solid fa-infinity text-5xl"></i>
             </div>
-            <p class="text-sm font-medium">語音鎖定功能已啟用</p>
-            <p class="text-xs mt-2">嚴格執行語言對應</p>
+            <p class="text-sm font-medium">支援 3000 字長篇翻譯</p>
+            <p class="text-xs mt-2">長文語音自動分段技術</p>
         </div>
         <div id="message-stream" class="flex flex-col gap-4 pb-4"></div>
         <div id="speech-preview" class="hidden sticky bottom-2 mx-auto bg-slate-800/90 backdrop-blur text-white px-5 py-3 rounded-full shadow-lg text-sm max-w-[90%] text-center z-10 border border-slate-600/50">
@@ -127,16 +127,23 @@
     </div>
 
     <!-- Bottom Controls -->
+    <!-- Chat -->
     <div id="ctrl-chat" class="bg-white border-t border-slate-200 p-3 pb-6 flex flex-col gap-2 z-30 shadow-[0_-4px_20px_rgba(0,0,0,0.05)] transition-transform duration-300">
         <div class="flex items-end gap-2">
             <button onclick="triggerCamera()" class="shrink-0 w-12 h-12 rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-blue-600 active:scale-95 transition-all flex items-center justify-center relative"><i class="fa-solid fa-camera text-xl"></i></button>
             <input type="file" id="cameraInput" accept="image/*" class="hidden" onchange="handleImageUpload(this)">
             <button id="btn-ptt" class="shrink-0 w-12 h-12 rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 active:scale-95 transition-all flex items-center justify-center relative"><i class="fa-solid fa-microphone text-xl"></i></button>
-            <textarea id="chat-input" rows="1" class="flex-1 bg-slate-50 border border-slate-300 rounded-2xl px-4 py-3 text-base outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 resize-none custom-scroll max-h-24" placeholder="輸入文字或貼上圖片..."></textarea>
+            
+            <div class="flex-1 relative">
+                 <textarea id="chat-input" rows="1" class="w-full bg-slate-50 border border-slate-300 rounded-2xl px-4 py-3 text-base outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 resize-none custom-scroll max-h-24" placeholder="支援 3000 字長文輸入..."></textarea>
+                 <div id="char-counter" class="absolute bottom-1 right-3 text-[9px] text-slate-400">0/3000</div>
+            </div>
+           
             <button onclick="handleTextSend()" class="shrink-0 w-12 h-12 rounded-full bg-blue-600 text-white hover:bg-blue-700 active:scale-95 transition-all shadow-md flex items-center justify-center"><i class="fa-solid fa-paper-plane text-sm"></i></button>
         </div>
         <p class="text-center text-[10px] text-slate-400">按住說話 / 貼上圖片 / 點擊拍照</p>
     </div>
+    <!-- Meeting -->
     <div id="ctrl-meeting" class="hidden bg-white border-t border-slate-200 p-4 pb-8 z-30 shadow-[0_-4px_20px_rgba(0,0,0,0.05)]">
         <div class="flex justify-center gap-4">
             <button id="btn-meeting-src" onclick="toggleMeetingTrack('src')" class="flex-1 h-16 rounded-2xl border-2 border-slate-200 bg-slate-50 text-slate-600 flex flex-col items-center justify-center gap-1 hover:bg-slate-100 active:scale-95 transition-all">
@@ -162,37 +169,107 @@
             container: document.getElementById('main-container'), stream: document.getElementById('message-stream'), welcome: document.getElementById('welcome-msg'),
             preview: { box: document.getElementById('speech-preview'), text: document.getElementById('preview-text') },
             btns: { ptt: document.getElementById('btn-ptt'), mSrc: document.getElementById('btn-meeting-src'), mTgt: document.getElementById('btn-meeting-tgt'), lSrc: document.getElementById('label-src'), lTgt: document.getElementById('label-tgt'), swap: document.getElementById('swapBtn') },
-            ocrOverlay: document.getElementById('ocr-overlay'), ocrStatus: document.getElementById('ocr-status'), ocrBar: document.getElementById('ocr-progress-bar'), dragOverlay: document.getElementById('drag-overlay'), toast: { box: document.getElementById('toast'), msg: document.getElementById('toast-msg') }
+            ocrOverlay: document.getElementById('ocr-overlay'), ocrStatus: document.getElementById('ocr-status'), ocrBar: document.getElementById('ocr-progress-bar'), dragOverlay: document.getElementById('drag-overlay'), toast: { box: document.getElementById('toast'), msg: document.getElementById('toast-msg') },
+            charCount: document.getElementById('char-counter')
         };
 
-        // === VOICE PLAYBACK (STRICT LOCK) ===
+        // === LONG TEXT TTS MANAGER (Chunking Fix) ===
+        let audioQueue = [];
+        let isPlayingQueue = false;
+
+        function playNextInQueue() {
+            if (audioQueue.length === 0) {
+                isPlayingQueue = false;
+                return;
+            }
+            isPlayingQueue = true;
+            const url = audioQueue.shift();
+            const audio = new Audio(url);
+            window.currentAudio = audio;
+            
+            audio.onended = () => {
+                playNextInQueue(); // Next chunk
+            };
+            audio.onerror = (e) => {
+                console.warn("Audio chunk error, skipping", e);
+                playNextInQueue();
+            };
+            
+            audio.play().catch(e => {
+                console.warn("Queue blocked", e);
+                isPlayingQueue = false;
+            });
+        }
+
+        // Enhanced Smart Splitter for TTS and Translation
+        function splitTextSafe(text, maxLength) {
+            // Split by punctuation to avoid cutting words
+            // Includes CN/VN/EN punctuations
+            const regex = /[^,.?!\n。？！；]+[,.?!\n。？！；]*/g;
+            const parts = text.match(regex) || [text];
+            const chunks = [];
+            let buffer = "";
+
+            for (let part of parts) {
+                if ((buffer + part).length > maxLength) {
+                    if (buffer) chunks.push(buffer);
+                    buffer = part;
+                    // Edge case: single sentence longer than limit
+                    if (buffer.length > maxLength) {
+                        // Hard chop if necessary
+                        const hardChunks = buffer.match(new RegExp(`.{1,${maxLength}}`, 'g'));
+                        if (hardChunks) {
+                            chunks.push(...hardChunks.slice(0, -1));
+                            buffer = hardChunks[hardChunks.length - 1];
+                        }
+                    }
+                } else {
+                    buffer += part;
+                }
+            }
+            if (buffer) chunks.push(buffer);
+            return chunks;
+        }
+
         function speakText(text, lang) {
             window.speechSynthesis.cancel();
             if (window.currentAudio) { window.currentAudio.pause(); window.currentAudio = null; }
+            audioQueue = [];
+            isPlayingQueue = false;
+
+            const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 
             let gLang = 'en';
             if (lang.includes('zh') || lang.includes('TW')) gLang = 'zh-TW';
             else if (lang.includes('vi')) gLang = 'vi';
+            
             let nLang = (gLang === 'vi') ? 'vi-VN' : gLang;
-
-            // Detect iOS
-            const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 
             if (isIOS) {
                 fallbackToNativeTTS(text, nLang);
                 return;
             }
 
-            // Windows/Android: Force Google
-            const url = `https://translate.googleapis.com/translate_tts?client=gtx&ie=UTF-8&tl=${gLang}&q=${encodeURIComponent(text)}`;
-            const audio = new Audio(url);
-            window.currentAudio = audio;
-            const playPromise = audio.play();
-            if (playPromise !== undefined) {
-                playPromise.catch(error => {
-                    console.warn("Google TTS blocked, fallback to native:", error);
-                    fallbackToNativeTTS(text, nLang);
+            // Use smaller chunks for TTS to be safe (Google API limit is tight)
+            const TTS_CHUNK_SIZE = 100; 
+            
+            if (text.length > TTS_CHUNK_SIZE) {
+                const chunks = splitTextSafe(text, TTS_CHUNK_SIZE);
+                chunks.forEach(chunk => {
+                    audioQueue.push(`https://translate.googleapis.com/translate_tts?client=gtx&ie=UTF-8&tl=${gLang}&q=${encodeURIComponent(chunk)}`);
                 });
+                playNextInQueue();
+            } else {
+                const url = `https://translate.googleapis.com/translate_tts?client=gtx&ie=UTF-8&tl=${gLang}&q=${encodeURIComponent(text)}`;
+                const audio = new Audio(url);
+                window.currentAudio = audio;
+                
+                const playPromise = audio.play();
+                if (playPromise !== undefined) {
+                    playPromise.catch(error => {
+                        fallbackToNativeTTS(text, nLang);
+                    });
+                }
             }
         }
 
@@ -200,47 +277,25 @@
             const u = new SpeechSynthesisUtterance(text);
             u.lang = langCode;
             u.rate = 0.9; 
-
-            // === STRICT VOICE SELECTION (ANTI-AUTO-DETECT) ===
             const voices = window.speechSynthesis.getVoices();
             let targetVoice = null;
-
-            // Priority List for iOS/Mac
-            const voicePrefs = {
-                'zh-TW': ['Meijia', 'Tingting', 'Sin-ji', 'Mei-Jia', 'Chinese (Taiwan)'],
-                'vi-VN': ['Linh', 'An', 'Vietnamese'],
-                'en-US': ['Samantha', 'Siri', 'Alex']
-            };
-
-            // Find specific voice
-            const tryFind = (code) => {
-                const prefs = voicePrefs[code] || [];
-                for (let name of prefs) {
-                    const v = voices.find(v => v.name.includes(name));
-                    if (v) return v;
-                }
-                return voices.find(v => v.lang === code);
-            };
-
-            // Determine which list to use
-            if (langCode.includes('vi')) targetVoice = tryFind('vi-VN');
-            else if (langCode.includes('zh')) targetVoice = tryFind('zh-TW');
-            else targetVoice = tryFind('en-US');
-
-            if (targetVoice) {
-                u.voice = targetVoice;
-            } else if (langCode.includes('vi') && !/iPad|iPhone|iPod/.test(navigator.userAgent)) {
-                 // Only show warning on Windows if completely missing
-                 // On iOS, it usually falls back gracefully if we don't force english
-            }
-
+            if (langCode.includes('vi')) targetVoice = voices.find(v => v.lang.includes('vi') || v.name.includes('Viet') || v.name.includes('Tiếng Việt'));
+            else if (langCode.includes('zh')) targetVoice = voices.find(v => v.lang.includes('zh-TW') || v.name.includes('Taiwan') || v.name.includes('Han'));
+            if (targetVoice) u.voice = targetVoice;
             window.speechSynthesis.speak(u);
         }
         window.speechSynthesis.getVoices();
 
-        // === TRANSLATION ===
+        // === TRANSLATION (Chunked for 3000 chars) ===
         async function processText(text) {
             if (!text || text.trim().length === 0) return;
+            
+            // 3000 limit check
+            if (text.length > 3000) {
+                showToast("字數超過 3000 限制，將自動截斷");
+                text = text.substring(0, 3000);
+            }
+
             let sLang, tLang, align;
             const getVal = (isSource) => isSource ? UI.inputs.source.value : UI.inputs.target.value;
 
@@ -254,17 +309,39 @@
             }
 
             const msgId = addBubble(text, '翻譯中...', '驗證中...', align, sLang, tLang);
+            
             try {
-                const trans = await fetchTranslate(text, sLang, tLang);
-                updateBubbleTrans(msgId, trans, true, tLang); 
-                if (trans && trans !== "API 忙碌") {
-                    const back = await fetchTranslate(trans, tLang, sLang);
-                    updateBubbleVerify(msgId, back);
-                } else { updateBubbleVerify(msgId, "..."); }
-            } catch (e) { updateBubbleTrans(msgId, "翻譯失敗", false); updateBubbleVerify(msgId, "---"); }
+                // 1. Translate (Chunked)
+                const transChunks = splitTextSafe(text, 1000); // 1000 chars per request safe limit
+                let fullTrans = "";
+                
+                for (const chunk of transChunks) {
+                    const res = await fetchTranslate(chunk, sLang, tLang);
+                    fullTrans += res + " ";
+                }
+                
+                updateBubbleTrans(msgId, fullTrans.trim(), true, tLang); 
+
+                // 2. Verify (Chunked)
+                if (fullTrans && !fullTrans.includes("錯誤")) {
+                    const verifyChunks = splitTextSafe(fullTrans, 1000);
+                    let fullVerify = "";
+                    for (const chunk of verifyChunks) {
+                        const res = await fetchTranslate(chunk, tLang, sLang);
+                        fullVerify += res + " ";
+                    }
+                    updateBubbleVerify(msgId, fullVerify.trim());
+                } else { 
+                    updateBubbleVerify(msgId, "..."); 
+                }
+            } catch (e) { 
+                updateBubbleTrans(msgId, "翻譯失敗", false); 
+                updateBubbleVerify(msgId, "---"); 
+            }
         }
 
         async function fetchTranslate(text, s, t) {
+            // Standard fetch logic with fallback
             const controller = new AbortController();
             setTimeout(() => controller.abort(), 8000);
             try {
@@ -286,7 +363,7 @@
             } catch (e) { return "網路錯誤"; }
         }
 
-        // === UI BUBBLES ===
+        // === UI & EVENTS ===
         function addBubble(orig, trans, verify, align, sLang, tLang) {
             UI.welcome.classList.add('hidden');
             const id = 'msg-' + Date.now() + Math.random().toString(36).substr(2);
@@ -342,7 +419,8 @@
             if(el) el.querySelector('.verify-text').innerText = text;
         }
 
-        // ... [REST OF THE CODE: Recognition, OCR, Events] ...
+        // ... [REST OF CODE: Recognition, Camera, Events] ...
+        // No major changes needed in Recognition logic from v37, reusing it.
         function initRecognition(trackOrMode) {
             if (App.recognition) { try { App.recognition.onend = null; App.recognition.abort(); } catch(e){} App.recognition = null; }
             const SpeechRecognition = window.webkitSpeechRecognition || window.SpeechRecognition;
@@ -407,7 +485,17 @@
         function closeKeyboard() { if (document.activeElement === UI.inputs.text) UI.inputs.text.blur(); }
         UI.inputs.source.addEventListener('change', updateLabels); UI.inputs.target.addEventListener('change', updateLabels);
         UI.inputs.text.addEventListener('keydown', e => { if(e.key==='Enter' && !e.shiftKey) { e.preventDefault(); handleTextSend(); }});
-        UI.inputs.text.addEventListener('input', function(){ this.style.height='auto'; this.style.height=this.scrollHeight+'px'; });
+        
+        // Input listener for char counter
+        UI.inputs.text.addEventListener('input', function(){ 
+            this.style.height='auto'; 
+            this.style.height=this.scrollHeight+'px'; 
+            const count = this.value.length;
+            UI.charCount.innerText = `${count}/3000`;
+            if(count > 3000) UI.charCount.classList.add('text-red-500');
+            else UI.charCount.classList.remove('text-red-500');
+        });
+
         const btn = UI.btns.ptt; btn.addEventListener('mousedown', startPTT); btn.addEventListener('touchstart', startPTT, {passive:false}); btn.addEventListener('mouseup', stopPTT); btn.addEventListener('touchend', stopPTT, {passive:false}); btn.addEventListener('mouseleave', stopPTT);
         UI.btns.mSrc.addEventListener('click', () => toggleMeeting('src')); UI.btns.mTgt.addEventListener('click', () => toggleMeeting('tgt'));
         updateLabels();
