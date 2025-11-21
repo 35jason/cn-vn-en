@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>ProTranslate v27 - 語音完美修復版</title>
+    <title>ProTranslate v28 - 長句語音優化版</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src='https://unpkg.com/tesseract.js@v5/dist/tesseract.min.js'></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -65,7 +65,7 @@
         <div class="flex justify-between items-center px-4 py-3 border-b border-slate-100">
             <div class="flex items-center gap-2 text-blue-600 font-bold text-lg">
                 <i class="fa-solid fa-volume-high"></i>
-                <span>ProTranslate <span class="text-[10px] bg-blue-50 text-blue-600 px-1.5 rounded ml-1 align-top">v27 Fix</span></span>
+                <span>ProTranslate <span class="text-[10px] bg-blue-50 text-blue-600 px-1.5 rounded ml-1 align-top">v28 Long</span></span>
             </div>
             <div class="flex items-center bg-slate-100 rounded-lg p-1 gap-1 text-sm">
                 <select id="sourceLang" class="bg-transparent font-bold text-slate-700 outline-none px-2 py-1 cursor-pointer w-24">
@@ -93,10 +93,10 @@
     <div id="main-container" class="flex-1 overflow-y-auto custom-scroll p-4 space-y-4 bg-[#f8fafc] pb-32 relative" onclick="closeKeyboard()">
         <div id="welcome-msg" class="flex flex-col items-center justify-center h-full text-slate-400 text-center opacity-60">
             <div class="relative mb-4">
-                <i class="fa-solid fa-headphones-simple text-5xl"></i>
+                <i class="fa-solid fa-layer-group text-5xl"></i>
             </div>
-            <p class="text-sm font-medium">語音播放邏輯已修正</p>
-            <p class="text-xs mt-2">優先使用 Google 高品質語音</p>
+            <p class="text-sm font-medium">支援長句分段朗讀</p>
+            <p class="text-xs mt-2">Google TTS Optimized</p>
         </div>
         <div id="message-stream" class="flex flex-col gap-4 pb-4"></div>
         <div id="speech-preview" class="hidden sticky bottom-2 mx-auto bg-slate-800/90 backdrop-blur text-white px-5 py-3 rounded-full shadow-lg text-sm max-w-[90%] text-center z-10 border border-slate-600/50">
@@ -167,52 +167,100 @@
             ocrOverlay: document.getElementById('ocr-overlay'), ocrStatus: document.getElementById('ocr-status'), ocrBar: document.getElementById('ocr-progress-bar'), dragOverlay: document.getElementById('drag-overlay'), toast: { box: document.getElementById('toast'), msg: document.getElementById('toast-msg') }
         };
 
-        // === VOICE PLAYBACK (FIXED) ===
-        function speakText(text, lang) {
-            // 1. Stop current
-            window.speechSynthesis.cancel();
-            if (window.currentAudio) { window.currentAudio.pause(); window.currentAudio = null; }
+        // === LONG TEXT TTS MANAGER ===
+        let audioQueue = [];
+        let isPlayingQueue = false;
 
-            // 2. Determine Google Language Code
-            let gLang = 'en';
-            if (lang.includes('zh') || lang.includes('TW')) gLang = 'zh-TW';
-            else if (lang.includes('vi')) gLang = 'vi';
-
-            // 3. Use Google Translate API (Unofficial but more stable endpoint)
-            const url = `https://translate.googleapis.com/translate_tts?client=gtx&ie=UTF-8&tl=${gLang}&q=${encodeURIComponent(text)}`;
-            
+        function playNextInQueue() {
+            if (audioQueue.length === 0) {
+                isPlayingQueue = false;
+                return;
+            }
+            isPlayingQueue = true;
+            const url = audioQueue.shift();
             const audio = new Audio(url);
             window.currentAudio = audio;
             
-            const playPromise = audio.play();
-            if (playPromise !== undefined) {
-                playPromise.catch(error => {
-                    console.warn("Google TTS failed, fallback to native:", error);
-                    fallbackToNativeTTS(text, lang);
-                });
+            audio.onended = () => {
+                playNextInQueue();
+            };
+            
+            audio.onerror = (e) => {
+                console.warn("Audio chunk error, skipping", e);
+                playNextInQueue();
+            };
+            
+            audio.play().catch(e => {
+                console.warn("Auto-play blocked, stopping queue", e);
+                isPlayingQueue = false;
+            });
+        }
+
+        function speakText(text, lang) {
+            // 1. Reset
+            window.speechSynthesis.cancel();
+            if (window.currentAudio) { window.currentAudio.pause(); window.currentAudio = null; }
+            audioQueue = []; 
+            isPlayingQueue = false;
+
+            // 2. Determine Google Lang
+            let gLang = 'en';
+            if (lang.includes('zh') || lang.includes('TW')) gLang = 'zh-TW';
+            else if (lang.includes('vi')) gLang = 'vi';
+            
+            // 3. Fallback Lang
+            let nLang = (gLang === 'vi') ? 'vi-VN' : gLang;
+
+            // 4. Check Length & Chunking
+            const MAX_CHUNK = 150; // Safe limit for Google TTS
+            
+            if (text.length > MAX_CHUNK) {
+                // Split by punctuation to keep sentences intact
+                const chunks = text.match(/[^,.?!\n]+[,.?!\n]*/g) || [text];
+                let buffer = "";
+                
+                for (let s of chunks) {
+                    if ((buffer + s).length < MAX_CHUNK) {
+                        buffer += s;
+                    } else {
+                        if(buffer) audioQueue.push(`https://translate.googleapis.com/translate_tts?client=gtx&ie=UTF-8&tl=${gLang}&q=${encodeURIComponent(buffer)}`);
+                        buffer = s;
+                    }
+                }
+                if(buffer) audioQueue.push(`https://translate.googleapis.com/translate_tts?client=gtx&ie=UTF-8&tl=${gLang}&q=${encodeURIComponent(buffer)}`);
+                
+                // Start playing queue
+                if (audioQueue.length > 0) {
+                    playNextInQueue();
+                }
+            } else {
+                // Short text: Direct play
+                const url = `https://translate.googleapis.com/translate_tts?client=gtx&ie=UTF-8&tl=${gLang}&q=${encodeURIComponent(text)}`;
+                const audio = new Audio(url);
+                window.currentAudio = audio;
+                const playPromise = audio.play();
+                if (playPromise !== undefined) {
+                    playPromise.catch(error => {
+                        console.warn("Google TTS failed, fallback to native:", error);
+                        fallbackToNativeTTS(text, nLang);
+                    });
+                }
             }
         }
 
         function fallbackToNativeTTS(text, langCode) {
-            // Force search for correct voice to avoid spelling letters
             const u = new SpeechSynthesisUtterance(text);
             u.lang = langCode;
             u.rate = 0.9; 
-
             const voices = window.speechSynthesis.getVoices();
             let targetVoice = null;
-
-            if (langCode.includes('vi')) {
-                // Look for 'Vietnamese' or 'Tiếng Việt' or 'VN'
-                targetVoice = voices.find(v => v.lang.includes('vi') || v.name.includes('Viet') || v.name.includes('Tiếng Việt'));
-            } else if (langCode.includes('zh')) {
-                targetVoice = voices.find(v => v.lang.includes('zh-TW') || v.name.includes('Taiwan') || v.name.includes('Han'));
-            }
-
+            if (langCode.includes('vi')) targetVoice = voices.find(v => v.lang.includes('vi') || v.name.includes('Viet') || v.name.includes('Tiếng Việt'));
+            else if (langCode.includes('zh')) targetVoice = voices.find(v => v.lang.includes('zh-TW') || v.name.includes('Taiwan') || v.name.includes('Han'));
             if (targetVoice) u.voice = targetVoice;
+            else if (langCode.includes('vi')) showToast("無越南語音包，可能拼讀字母");
             window.speechSynthesis.speak(u);
         }
-        window.speechSynthesis.getVoices(); // Preload
+        window.speechSynthesis.getVoices();
 
         // === TRANSLATION ===
         async function processText(text) {
@@ -232,7 +280,7 @@
             const msgId = addBubble(text, '翻譯中...', '驗證中...', align, sLang, tLang);
             try {
                 const trans = await fetchTranslate(text, sLang, tLang);
-                updateBubbleTrans(msgId, trans, true, tLang); // Pass tLang here correctly
+                updateBubbleTrans(msgId, trans, true, tLang); 
                 if (trans && trans !== "API 忙碌") {
                     const back = await fetchTranslate(trans, tLang, sLang);
                     updateBubbleVerify(msgId, back);
@@ -269,7 +317,7 @@
             const alignClass = align === 'right' ? 'items-end' : 'items-start';
             const bubbleColor = align === 'right' ? 'bg-white border-r-4 border-blue-500' : 'bg-white border-l-4 border-orange-400'; 
             const label = sLang.toUpperCase().replace('-VN','').replace('-TW','').replace('-US','');
-            const escOrig = orig.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+            const escOrig = orig.replace(/'/g, "\\'").replace(/"/g, '&quot;').replace(/\n/g, ' ');
             
             const html = `
                 <div id="${id}" class="flex flex-col ${alignClass} fade-in-up w-full">
@@ -307,7 +355,7 @@
             p.className = success ? 'trans-text text-lg font-bold text-blue-700 flex-1' : 'trans-text text-base text-red-500 flex-1';
             if (success) {
                 const btn = document.getElementById(`btn-tts-${id}`);
-                const escText = text.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+                const escText = text.replace(/'/g, "\\'").replace(/"/g, '&quot;').replace(/\n/g, ' ');
                 btn.setAttribute('onclick', `speakText('${escText}', '${tLang}')`);
                 btn.classList.remove('hidden');
             }
@@ -318,8 +366,8 @@
             if(el) el.querySelector('.verify-text').innerText = text;
         }
 
-        // === SPEECH RECOGNITION & OTHER LOGIC (SAME AS BEFORE) ===
-        // ... Keeping previously fixed logic for Recognition, OCR, etc ...
+        // ... [REST OF THE CODE: Recognition, OCR, Events] ...
+        // Same as v27 logic
         function initRecognition(trackOrMode) {
             if (App.recognition) { try { App.recognition.onend = null; App.recognition.abort(); } catch(e){} App.recognition = null; }
             const SpeechRecognition = window.webkitSpeechRecognition || window.SpeechRecognition;
