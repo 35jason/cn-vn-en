@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>ProTranslate v28 - 長句語音優化版</title>
+    <title>ProTranslate v29 - 越文辨識修復版</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src='https://unpkg.com/tesseract.js@v5/dist/tesseract.min.js'></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -64,8 +64,8 @@
     <div class="bg-white shadow-sm z-20 shrink-0">
         <div class="flex justify-between items-center px-4 py-3 border-b border-slate-100">
             <div class="flex items-center gap-2 text-blue-600 font-bold text-lg">
-                <i class="fa-solid fa-volume-high"></i>
-                <span>ProTranslate <span class="text-[10px] bg-blue-50 text-blue-600 px-1.5 rounded ml-1 align-top">v28 Long</span></span>
+                <i class="fa-solid fa-wrench"></i>
+                <span>ProTranslate <span class="text-[10px] bg-green-100 text-green-600 px-1.5 rounded ml-1 align-top">v29 VN-Fix</span></span>
             </div>
             <div class="flex items-center bg-slate-100 rounded-lg p-1 gap-1 text-sm">
                 <select id="sourceLang" class="bg-transparent font-bold text-slate-700 outline-none px-2 py-1 cursor-pointer w-24">
@@ -76,10 +76,11 @@
                 <button id="swapBtn" onclick="swapLanguages()" class="w-8 h-8 flex items-center justify-center rounded-full text-slate-400 hover:text-blue-600 hover:bg-white hover:shadow-sm transition-all">
                     <i class="fa-solid fa-arrow-right-arrow-left text-xs"></i>
                 </button>
+                <!-- [Fix]: Added data-code attributes to targetLang for meeting mode recognition -->
                 <select id="targetLang" class="bg-transparent font-bold text-blue-600 outline-none px-2 py-1 cursor-pointer w-24">
-                    <option value="vi-VN">越文 (VN)</option>
-                    <option value="en-US">英文 (US)</option>
-                    <option value="zh-TW">中文 (TW)</option>
+                    <option value="vi-VN" data-code="vi-VN">越文 (VN)</option>
+                    <option value="en-US" data-code="en-US">英文 (US)</option>
+                    <option value="zh-TW" data-code="zh-TW">中文 (TW)</option>
                 </select>
             </div>
         </div>
@@ -93,10 +94,10 @@
     <div id="main-container" class="flex-1 overflow-y-auto custom-scroll p-4 space-y-4 bg-[#f8fafc] pb-32 relative" onclick="closeKeyboard()">
         <div id="welcome-msg" class="flex flex-col items-center justify-center h-full text-slate-400 text-center opacity-60">
             <div class="relative mb-4">
-                <i class="fa-solid fa-layer-group text-5xl"></i>
+                <i class="fa-solid fa-language text-5xl"></i>
             </div>
-            <p class="text-sm font-medium">支援長句分段朗讀</p>
-            <p class="text-xs mt-2">Google TTS Optimized</p>
+            <p class="text-sm font-medium">越文辨識已修復</p>
+            <p class="text-xs mt-2">Meeting Mode VN Recognition Fixed</p>
         </div>
         <div id="message-stream" class="flex flex-col gap-4 pb-4"></div>
         <div id="speech-preview" class="hidden sticky bottom-2 mx-auto bg-slate-800/90 backdrop-blur text-white px-5 py-3 rounded-full shadow-lg text-sm max-w-[90%] text-center z-10 border border-slate-600/50">
@@ -197,25 +198,20 @@
         }
 
         function speakText(text, lang) {
-            // 1. Reset
             window.speechSynthesis.cancel();
             if (window.currentAudio) { window.currentAudio.pause(); window.currentAudio = null; }
             audioQueue = []; 
             isPlayingQueue = false;
 
-            // 2. Determine Google Lang
             let gLang = 'en';
             if (lang.includes('zh') || lang.includes('TW')) gLang = 'zh-TW';
             else if (lang.includes('vi')) gLang = 'vi';
             
-            // 3. Fallback Lang
             let nLang = (gLang === 'vi') ? 'vi-VN' : gLang;
 
-            // 4. Check Length & Chunking
-            const MAX_CHUNK = 150; // Safe limit for Google TTS
+            const MAX_CHUNK = 150; 
             
             if (text.length > MAX_CHUNK) {
-                // Split by punctuation to keep sentences intact
                 const chunks = text.match(/[^,.?!\n]+[,.?!\n]*/g) || [text];
                 let buffer = "";
                 
@@ -229,19 +225,16 @@
                 }
                 if(buffer) audioQueue.push(`https://translate.googleapis.com/translate_tts?client=gtx&ie=UTF-8&tl=${gLang}&q=${encodeURIComponent(buffer)}`);
                 
-                // Start playing queue
                 if (audioQueue.length > 0) {
                     playNextInQueue();
                 }
             } else {
-                // Short text: Direct play
                 const url = `https://translate.googleapis.com/translate_tts?client=gtx&ie=UTF-8&tl=${gLang}&q=${encodeURIComponent(text)}`;
                 const audio = new Audio(url);
                 window.currentAudio = audio;
                 const playPromise = audio.play();
                 if (playPromise !== undefined) {
                     playPromise.catch(error => {
-                        console.warn("Google TTS failed, fallback to native:", error);
                         fallbackToNativeTTS(text, nLang);
                     });
                 }
@@ -257,7 +250,6 @@
             if (langCode.includes('vi')) targetVoice = voices.find(v => v.lang.includes('vi') || v.name.includes('Viet') || v.name.includes('Tiếng Việt'));
             else if (langCode.includes('zh')) targetVoice = voices.find(v => v.lang.includes('zh-TW') || v.name.includes('Taiwan') || v.name.includes('Han'));
             if (targetVoice) u.voice = targetVoice;
-            else if (langCode.includes('vi')) showToast("無越南語音包，可能拼讀字母");
             window.speechSynthesis.speak(u);
         }
         window.speechSynthesis.getVoices();
@@ -273,8 +265,16 @@
                 tLang = getVal(false);
                 align = 'right';
             } else {
-                if (App.meetingTrack === 'src') { sLang = getVal(true); tLang = getVal(false); align = 'right'; }
-                else { sLang = getVal(false); tLang = getVal(true); align = 'left'; }
+                // Fix logic for src/tgt buttons in meeting mode
+                if (App.meetingTrack === 'src') { 
+                    sLang = getVal(true); 
+                    tLang = getVal(false); 
+                    align = 'right'; 
+                } else { 
+                    sLang = getVal(false); 
+                    tLang = getVal(true); 
+                    align = 'left'; 
+                }
             }
 
             const msgId = addBubble(text, '翻譯中...', '驗證中...', align, sLang, tLang);
@@ -366,8 +366,7 @@
             if(el) el.querySelector('.verify-text').innerText = text;
         }
 
-        // ... [REST OF THE CODE: Recognition, OCR, Events] ...
-        // Same as v27 logic
+        // === SPEECH RECOGNITION ===
         function initRecognition(trackOrMode) {
             if (App.recognition) { try { App.recognition.onend = null; App.recognition.abort(); } catch(e){} App.recognition = null; }
             const SpeechRecognition = window.webkitSpeechRecognition || window.SpeechRecognition;
@@ -375,9 +374,19 @@
             const rec = new SpeechRecognition();
             rec.continuous = false; rec.interimResults = true; rec.maxAlternatives = 1;
             let langCode = 'zh-TW'; 
-            const getLang = (isSource) => { const el = isSource ? UI.inputs.source : UI.inputs.target; return el.options[el.selectedIndex].getAttribute('data-code'); };
+            // [Fix]: Robust getLang function handling both Source and Target selects
+            const getLang = (isSource) => { 
+                const el = isSource ? UI.inputs.source : UI.inputs.target; 
+                const opt = el.options[el.selectedIndex];
+                // Fallback to value if data-code is missing (double safety)
+                return opt.getAttribute('data-code') || opt.value; 
+            };
+            
             if (App.mode === 'chat') langCode = getLang(true);
-            else { if (trackOrMode === 'src') langCode = getLang(true); else if (trackOrMode === 'tgt') langCode = getLang(false); }
+            else { 
+                if (trackOrMode === 'src') langCode = getLang(true); 
+                else if (trackOrMode === 'tgt') langCode = getLang(false); // This will now work correctly
+            }
             rec.lang = langCode;
             rec.onstart = () => { App.isRecording = true; App.isStarting = false; App.tempTranscript = ''; UI.preview.box.classList.remove('hidden'); UI.preview.text.textContent = "聆聽中..."; if (App.mode === 'chat') UI.btns.ptt.classList.add('btn-mic-hold'); };
             rec.onresult = (event) => {
