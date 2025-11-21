@@ -1,0 +1,882 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>ProTranslate v24 - 拖曳貼上辨識版</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Tesseract.js for OCR -->
+    <script src='https://unpkg.com/tesseract.js@v5/dist/tesseract.min.js'></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Roboto:wght@400;500&display=swap" rel="stylesheet">
+
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background-color: #f8fafc;
+            overscroll-behavior: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        /* === 捲軸美化 === */
+        .custom-scroll::-webkit-scrollbar { width: 4px; }
+        .custom-scroll::-webkit-scrollbar-track { background: transparent; }
+        .custom-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 2px; }
+
+        /* === 動畫特效 === */
+        .fade-in-up { animation: fadeInUp 0.3s ease-out forwards; }
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* === 錄音按鈕狀態 === */
+        .btn-mic-hold {
+            transform: scale(1.1);
+            background-color: #2563eb !important;
+            box-shadow: 0 0 0 15px rgba(37, 99, 235, 0.2);
+            color: white !important;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        #btn-ptt {
+            touch-action: none;
+            -webkit-touch-callout: none;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        /* === 會議模式按鈕狀態 === */
+        .meeting-active-src {
+            background-color: #eff6ff !important;
+            border-color: #2563eb !important;
+            color: #1e40af !important;
+            position: relative;
+        }
+        .meeting-active-src::after {
+            content: ''; position: absolute; top: 10px; right: 10px; width: 8px; height: 8px; background: #2563eb; border-radius: 50%; animation: pulse-dot 1s infinite;
+        }
+
+        .meeting-active-tgt {
+            background-color: #fefce8 !important;
+            border-color: #ca8a04 !important;
+            color: #854d0e !important;
+            position: relative;
+        }
+        .meeting-active-tgt::after {
+            content: ''; position: absolute; top: 10px; right: 10px; width: 8px; height: 8px; background: #ca8a04; border-radius: 50%; animation: pulse-dot 1s infinite;
+        }
+
+        @keyframes pulse-dot { 0% {opacity: 1;} 50% {opacity: 0.3;} 100% {opacity: 1;} }
+
+        .tab-btn { opacity: 0.6; transition: all 0.2s; border-bottom: 3px solid transparent; }
+        .tab-btn.active { opacity: 1; color: #2563eb; border-color: #2563eb; font-weight: bold; }
+
+        #swapBtn i { transition: transform 0.3s ease; }
+        
+        .speak-btn {
+            opacity: 0.5;
+            transition: all 0.2s;
+            padding: 6px;
+            border-radius: 50%;
+            cursor: pointer;
+            color: #475569;
+        }
+        .speak-btn:hover, .speak-btn:active {
+            opacity: 1;
+            background-color: rgba(0,0,0,0.05);
+            color: #2563eb;
+        }
+
+        [contenteditable]:focus {
+            outline: none;
+            background-color: #fff; 
+            border-bottom: 1px dashed #94a3b8;
+        }
+
+        /* OCR Overlay */
+        #ocr-overlay, #drag-overlay {
+            backdrop-filter: blur(5px);
+        }
+        
+        /* Drag Overlay Dashed Box */
+        .drag-box {
+            border: 4px dashed #60a5fa;
+            background-color: rgba(239, 246, 255, 0.8);
+        }
+    </style>
+</head>
+<body class="h-[100dvh] flex flex-col overflow-hidden text-slate-800 bg-[#f8fafc]">
+
+    <!-- 1. 頂部導航 -->
+    <div class="bg-white shadow-sm z-20 shrink-0">
+        <div class="flex justify-between items-center px-4 py-3 border-b border-slate-100">
+            <div class="flex items-center gap-2 text-blue-600 font-bold text-lg">
+                <i class="fa-solid fa-camera-rotate"></i>
+                <span>ProTranslate <span class="text-[10px] bg-blue-50 text-blue-600 px-1.5 rounded ml-1 align-top">v24</span></span>
+            </div>
+            <!-- 語言切換區 -->
+            <div class="flex items-center bg-slate-100 rounded-lg p-1 gap-1 text-sm">
+                <select id="sourceLang" class="bg-transparent font-bold text-slate-700 outline-none px-2 py-1 cursor-pointer w-24">
+                    <option value="zh-TW" data-code="zh-TW">中文 (TW)</option>
+                    <option value="vi-VN" data-code="vi-VN">越文 (VN)</option>
+                    <option value="en-US" data-code="en-US">英文 (US)</option>
+                </select>
+                
+                <button id="swapBtn" onclick="swapLanguages()" class="w-8 h-8 flex items-center justify-center rounded-full text-slate-400 hover:text-blue-600 hover:bg-white hover:shadow-sm transition-all">
+                    <i class="fa-solid fa-arrow-right-arrow-left text-xs"></i>
+                </button>
+
+                <select id="targetLang" class="bg-transparent font-bold text-blue-600 outline-none px-2 py-1 cursor-pointer w-24">
+                    <option value="vi-VN">越文 (VN)</option>
+                    <option value="en-US">英文 (US)</option>
+                    <option value="zh-TW">中文 (TW)</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="flex bg-white text-sm border-b border-slate-200">
+            <button onclick="switchMode('chat')" id="tab-chat" class="tab-btn active flex-1 py-3 text-center">
+                <i class="fa-regular fa-comments mr-1"></i> 對話與打字
+            </button>
+            <button onclick="switchMode('meeting')" id="tab-meeting" class="tab-btn flex-1 py-3 text-center">
+                <i class="fa-solid fa-microphone-lines mr-1"></i> 會議模式
+            </button>
+        </div>
+    </div>
+
+    <!-- 2. 主要內容區 -->
+    <div id="main-container" class="flex-1 overflow-y-auto custom-scroll p-4 space-y-4 bg-[#f8fafc] pb-32 relative" onclick="closeKeyboard()">
+        
+        <div id="welcome-msg" class="flex flex-col items-center justify-center h-full text-slate-400 text-center opacity-60">
+            <div class="relative mb-4">
+                <i class="fa-solid fa-image text-5xl"></i>
+                <i class="fa-solid fa-paste absolute -bottom-2 -right-2 text-2xl bg-white p-1 rounded-full text-blue-500"></i>
+            </div>
+            <p class="text-sm font-medium">支援圖片拖曳與貼上</p>
+            <p class="text-xs mt-2">Ctrl+V 直接辨識</p>
+        </div>
+
+        <div id="message-stream" class="flex flex-col gap-4 pb-4"></div>
+
+        <!-- 語音預覽 -->
+        <div id="speech-preview" class="hidden sticky bottom-2 mx-auto bg-slate-800/90 backdrop-blur text-white px-5 py-3 rounded-full shadow-lg text-sm max-w-[90%] text-center z-10 border border-slate-600/50">
+            <div class="flex items-center justify-center gap-3">
+                <div class="flex gap-1">
+                    <div class="w-1.5 h-1.5 bg-blue-500 rounded-full animate-pulse"></div>
+                    <div class="w-1.5 h-1.5 bg-blue-500 rounded-full animate-pulse delay-75"></div>
+                </div>
+                <span id="preview-text">聆聽中...</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Drag Overlay -->
+    <div id="drag-overlay" class="hidden fixed inset-0 z-[100] bg-slate-50/90 flex items-center justify-center p-8">
+        <div class="drag-box w-full h-full rounded-3xl flex flex-col items-center justify-center text-blue-500 animate-pulse">
+            <i class="fa-solid fa-cloud-arrow-up text-8xl mb-6"></i>
+            <h2 class="text-3xl font-bold">放開以辨識圖片</h2>
+            <p class="text-slate-500 mt-2">支援 JPG, PNG, BMP</p>
+        </div>
+    </div>
+
+    <!-- OCR Loading Overlay -->
+    <div id="ocr-overlay" class="hidden fixed inset-0 bg-slate-900/70 z-50 flex flex-col items-center justify-center text-white">
+        <div class="animate-spin rounded-full h-12 w-12 border-4 border-blue-500 border-t-transparent mb-4"></div>
+        <h3 class="text-lg font-bold">正在辨識圖片...</h3>
+        <p class="text-xs text-slate-300 mt-2" id="ocr-status">初始化引擎中...</p>
+    </div>
+
+    <!-- 3. 底部控制區 -->
+
+    <!-- A: 對話與打字 (PTT + Camera) -->
+    <div id="ctrl-chat" class="bg-white border-t border-slate-200 p-3 pb-6 flex flex-col gap-2 z-30 shadow-[0_-4px_20px_rgba(0,0,0,0.05)] transition-transform duration-300">
+        <div class="flex items-end gap-2">
+            <!-- OCR 相機按鈕 -->
+            <button onclick="triggerCamera()" class="shrink-0 w-12 h-12 rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-blue-600 active:scale-95 transition-all flex items-center justify-center relative" title="上傳圖片/拍照">
+                <i class="fa-solid fa-camera text-xl"></i>
+            </button>
+            <input type="file" id="cameraInput" accept="image/*" class="hidden" onchange="handleImageUpload(this)">
+
+            <!-- 語音按鈕 -->
+            <button id="btn-ptt" class="shrink-0 w-12 h-12 rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 active:scale-95 transition-all flex items-center justify-center relative overflow-visible touch-manipulation">
+                <i class="fa-solid fa-microphone text-xl"></i>
+            </button>
+
+            <textarea id="chat-input" rows="1" class="flex-1 bg-slate-50 border border-slate-300 rounded-2xl px-4 py-3 text-base outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 resize-none custom-scroll max-h-24" placeholder="輸入文字或貼上圖片..."></textarea>
+
+            <button onclick="handleTextSend()" class="shrink-0 w-12 h-12 rounded-full bg-blue-600 text-white hover:bg-blue-700 active:scale-95 transition-all shadow-md flex items-center justify-center">
+                <i class="fa-solid fa-paper-plane text-sm"></i>
+            </button>
+        </div>
+        <p class="text-center text-[10px] text-slate-400">按住說話 / 貼上圖片 / 點擊拍照</p>
+    </div>
+
+    <!-- B: 會議模式 -->
+    <div id="ctrl-meeting" class="hidden bg-white border-t border-slate-200 p-4 pb-8 z-30 shadow-[0_-4px_20px_rgba(0,0,0,0.05)]">
+        <div class="flex justify-center gap-4">
+            <button id="btn-meeting-src" onclick="toggleMeetingTrack('src')" class="flex-1 h-16 rounded-2xl border-2 border-slate-200 bg-slate-50 text-slate-600 flex flex-col items-center justify-center gap-1 hover:bg-slate-100 active:scale-95 transition-all">
+                <div class="flex items-center gap-2">
+                    <span class="text-lg">🔴</span>
+                    <span class="font-bold text-sm" id="label-src">講中文</span>
+                </div>
+            </button>
+
+            <button id="btn-meeting-tgt" onclick="toggleMeetingTrack('tgt')" class="flex-1 h-16 rounded-2xl border-2 border-slate-200 bg-slate-50 text-slate-600 flex flex-col items-center justify-center gap-1 hover:bg-slate-100 active:scale-95 transition-all">
+                <div class="flex items-center gap-2">
+                    <span class="text-lg">🟡</span>
+                    <span class="font-bold text-sm" id="label-tgt">講越文</span>
+                </div>
+            </button>
+        </div>
+        <div class="text-center mt-2">
+            <p class="text-[10px] text-slate-400">雙語會議模式：智慧斷句</p>
+        </div>
+    </div>
+
+    <!-- Toast -->
+    <div id="toast" class="fixed top-6 left-1/2 -translate-x-1/2 bg-slate-800/90 backdrop-blur text-white px-4 py-2 rounded-full shadow-lg text-sm hidden z-50 transition-opacity flex items-center gap-2">
+        <i class="fa-solid fa-robot"></i>
+        <span id="toast-msg">通知</span>
+    </div>
+
+    <script>
+        // ======================
+        // 系統狀態
+        // ======================
+        const App = {
+            mode: 'chat', 
+            recognition: null,
+            isRecording: false,
+            isStarting: false,
+            meetingTrack: null, 
+            tempTranscript: '', 
+            silenceTimer: null,
+            SILENCE_MS: 1500,
+            isTouch: false
+        };
+
+        const UI = {
+            tabs: { chat: document.getElementById('tab-chat'), meeting: document.getElementById('tab-meeting') },
+            ctrls: { chat: document.getElementById('ctrl-chat'), meeting: document.getElementById('ctrl-meeting') },
+            inputs: { source: document.getElementById('sourceLang'), target: document.getElementById('targetLang'), text: document.getElementById('chat-input'), camera: document.getElementById('cameraInput') },
+            container: document.getElementById('main-container'),
+            stream: document.getElementById('message-stream'),
+            welcome: document.getElementById('welcome-msg'),
+            preview: { box: document.getElementById('speech-preview'), text: document.getElementById('preview-text') },
+            btns: { 
+                ptt: document.getElementById('btn-ptt'), 
+                mSrc: document.getElementById('btn-meeting-src'), 
+                mTgt: document.getElementById('btn-meeting-tgt'),
+                lSrc: document.getElementById('label-src'),
+                lTgt: document.getElementById('label-tgt'),
+                swap: document.getElementById('swapBtn')
+            },
+            ocrOverlay: document.getElementById('ocr-overlay'),
+            ocrStatus: document.getElementById('ocr-status'),
+            dragOverlay: document.getElementById('drag-overlay'),
+            toast: { box: document.getElementById('toast'), msg: document.getElementById('toast-msg') }
+        };
+
+        // ======================
+        // 1. OCR & Image Handling (New)
+        // ======================
+        
+        function triggerCamera() {
+            UI.inputs.camera.click();
+        }
+
+        // 統一處理圖片輸入 (File Input / Paste / Drop)
+        async function processImageFile(file) {
+            if (!file) return;
+            
+            // UI Loading
+            UI.ocrOverlay.classList.remove('hidden');
+            UI.ocrStatus.innerText = "準備辨識引擎...";
+
+            // Map language code for Tesseract
+            const langMap = {
+                'zh-TW': 'chi_tra',
+                'vi-VN': 'vie',
+                'en-US': 'eng'
+            };
+            const sourceCode = UI.inputs.source.value;
+            const tesseractLang = langMap[sourceCode] || 'eng';
+
+            try {
+                UI.ocrStatus.innerText = `正在讀取圖片...`;
+                
+                const { data: { text } } = await Tesseract.recognize(
+                    file,
+                    tesseractLang,
+                    {
+                        logger: m => {
+                            if(m.status === 'recognizing text') {
+                                UI.ocrStatus.innerText = `智慧辨識中... ${Math.round(m.progress * 100)}%`;
+                            }
+                        }
+                    }
+                );
+
+                UI.ocrOverlay.classList.add('hidden');
+                
+                const cleanText = text.replace(/\s+/g, ' ').trim();
+                if (cleanText.length > 0) {
+                    processText(cleanText); // Send to translation
+                    showToast("辨識成功！");
+                } else {
+                    showToast("未偵測到清晰文字");
+                }
+
+            } catch (error) {
+                console.error(error);
+                UI.ocrOverlay.classList.add('hidden');
+                showToast("辨識失敗，請重試");
+            }
+        }
+
+        // File Input Change
+        function handleImageUpload(input) {
+            if (input.files && input.files[0]) {
+                processImageFile(input.files[0]);
+                input.value = ''; // Reset
+            }
+        }
+
+        // === Paste Event Handler ===
+        document.addEventListener('paste', (e) => {
+            const items = (e.clipboardData || e.originalEvent.clipboardData).items;
+            for (let item of items) {
+                if (item.type.startsWith('image/')) {
+                    e.preventDefault();
+                    const file = item.getAsFile();
+                    processImageFile(file);
+                    return;
+                }
+            }
+        });
+
+        // === Drag & Drop Handlers ===
+        const body = document.body;
+        let dragCounter = 0;
+
+        body.addEventListener('dragenter', (e) => {
+            e.preventDefault();
+            dragCounter++;
+            UI.dragOverlay.classList.remove('hidden');
+        });
+
+        body.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            dragCounter--;
+            if (dragCounter === 0) {
+                UI.dragOverlay.classList.add('hidden');
+            }
+        });
+
+        body.addEventListener('dragover', (e) => {
+            e.preventDefault(); // Necessary to allow dropping
+        });
+
+        body.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dragCounter = 0;
+            UI.dragOverlay.classList.add('hidden');
+
+            if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+                const file = e.dataTransfer.files[0];
+                if (file.type.startsWith('image/')) {
+                    processImageFile(file);
+                } else {
+                    showToast("請拖曳圖片檔案");
+                }
+            }
+        });
+
+        // ======================
+        // 2. 語音引擎 (Unified Core)
+        // ======================
+        
+        function initRecognition(trackOrMode) {
+            if (App.recognition) {
+                try { 
+                    App.recognition.onend = null; 
+                    App.recognition.abort(); 
+                } catch(e){}
+                App.recognition = null;
+            }
+
+            const SpeechRecognition = window.webkitSpeechRecognition || window.SpeechRecognition;
+            if (!SpeechRecognition) {
+                showToast("您的瀏覽器不支援語音 API");
+                return null;
+            }
+
+            const rec = new SpeechRecognition();
+            
+            rec.continuous = false; 
+            rec.interimResults = true;
+            rec.maxAlternatives = 1;
+
+            let langCode = 'zh-TW'; 
+            const getLang = (isSource) => {
+                const el = isSource ? UI.inputs.source : UI.inputs.target;
+                return el.options[el.selectedIndex].getAttribute('data-code');
+            };
+
+            if (App.mode === 'chat') {
+                langCode = getLang(true);
+            } else {
+                if (trackOrMode === 'src') langCode = getLang(true);
+                else if (trackOrMode === 'tgt') langCode = getLang(false);
+            }
+            rec.lang = langCode;
+
+            rec.onstart = () => {
+                App.isRecording = true;
+                App.isStarting = false;
+                App.tempTranscript = '';
+                UI.preview.box.classList.remove('hidden');
+                UI.preview.text.textContent = "聆聽中...";
+                if (App.mode === 'chat') UI.btns.ptt.classList.add('btn-mic-hold');
+            };
+
+            rec.onresult = (event) => {
+                if (App.mode === 'meeting') {
+                    clearTimeout(App.silenceTimer);
+                    App.silenceTimer = setTimeout(() => {
+                         try { rec.stop(); } catch(e){} 
+                    }, App.SILENCE_MS);
+                }
+
+                let interim = '';
+                let final = '';
+
+                for (let i = event.resultIndex; i < event.results.length; ++i) {
+                    if (event.results[i].isFinal) {
+                        final += event.results[i][0].transcript;
+                    } else {
+                        interim += event.results[i][0].transcript;
+                    }
+                }
+
+                if (interim.length > 0) {
+                    App.tempTranscript = interim; 
+                    UI.preview.text.textContent = interim;
+                }
+
+                if (final.trim()) {
+                    processText(final);
+                    App.tempTranscript = ''; 
+                    UI.preview.text.textContent = "";
+                }
+            };
+
+            rec.onend = () => {
+                App.isRecording = false;
+                UI.preview.box.classList.add('hidden');
+                UI.btns.ptt.classList.remove('btn-mic-hold');
+
+                if (App.tempTranscript.trim()) {
+                    processText(App.tempTranscript);
+                    App.tempTranscript = '';
+                }
+
+                if (App.mode === 'meeting' && App.meetingTrack !== null) {
+                    setTimeout(() => {
+                        if (App.meetingTrack !== null && !App.isRecording && !App.isStarting) {
+                            const newRec = initRecognition(App.meetingTrack);
+                            if(newRec) {
+                                App.isStarting = true;
+                                try { newRec.start(); } catch(e){ 
+                                    App.isStarting = false;
+                                }
+                            }
+                        }
+                    }, 300);
+                } else if (App.mode === 'meeting') {
+                    resetMeetingUI();
+                }
+            };
+
+            rec.onerror = (e) => {
+                console.log("Speech Error", e.error);
+                App.isStarting = false;
+                if (e.error === 'not-allowed') {
+                    showToast("請允許麥克風權限");
+                    stopEverything();
+                }
+            };
+
+            App.recognition = rec;
+            return rec;
+        }
+
+        // ======================
+        // 3. 業務邏輯 (AI Verify & Translate)
+        // ======================
+
+        async function processText(text) {
+            if (!text || text.trim().length === 0) return;
+
+            let sLang, tLang, align;
+            const getVal = (isSource) => isSource ? UI.inputs.source.value : UI.inputs.target.value;
+
+            if (App.mode === 'chat') {
+                sLang = getVal(true);
+                tLang = getVal(false);
+                align = 'right';
+            } else {
+                if (App.meetingTrack === 'src') {
+                    sLang = getVal(true);
+                    tLang = getVal(false);
+                    align = 'right';
+                } else {
+                    sLang = getVal(false);
+                    tLang = getVal(true);
+                    align = 'left';
+                }
+            }
+
+            const msgId = addBubble(text, '翻譯中...', '驗證中...', align, sLang, tLang);
+            
+            try {
+                const trans = await fetchTranslate(text, sLang, tLang);
+                updateBubbleTrans(msgId, trans, true, tLang);
+
+                if (trans && trans !== "API 錯誤") {
+                    const backTrans = await fetchTranslate(trans, tLang, sLang);
+                    updateBubbleVerify(msgId, backTrans);
+                } else {
+                    updateBubbleVerify(msgId, "無法驗證");
+                }
+
+            } catch (e) {
+                updateBubbleTrans(msgId, "翻譯失敗", false);
+                updateBubbleVerify(msgId, "---");
+            }
+        }
+
+        async function fetchTranslate(text, s, t) {
+            const controller = new AbortController();
+            setTimeout(() => controller.abort(), 10000);
+
+            try {
+                let gs = s.includes('vi') ? 'vi' : s.replace('zh-TW', 'zh-TW');
+                let gt = t.includes('vi') ? 'vi' : t.replace('zh-TW', 'zh-TW');
+                
+                const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${gs}&tl=${gt}&dt=t&q=${encodeURIComponent(text)}`;
+                
+                const res = await fetch(url, { signal: controller.signal });
+                if (!res.ok) throw new Error("G-Err");
+                
+                const data = await res.json();
+                if (data && data[0]) {
+                    return data[0].map(x => x[0]).join('');
+                }
+                throw new Error("No Data");
+            } catch (e) {
+                console.log("Translation Error:", e);
+                return "API 錯誤";
+            }
+        }
+
+        // ======================
+        // 4. 編輯與重譯
+        // ======================
+
+        function handleEditKey(e, id, sLang, tLang) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                document.getElementById('orig-' + id).blur(); 
+            }
+        }
+
+        async function reTranslate(id, sLang, tLang) {
+            const origEl = document.getElementById('orig-' + id);
+            if (!origEl) return;
+            
+            const newText = origEl.innerText.trim();
+            if (!newText) return; 
+
+            const speakBtn = document.getElementById('btn-speak-orig-' + id);
+            if (speakBtn) {
+                const escNewText = newText.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+                speakBtn.setAttribute('onclick', `speakText('${escNewText}', '${sLang}')`);
+            }
+
+            const el = document.getElementById(id);
+            const pTrans = el.querySelector('.trans-text');
+            const pVerify = el.querySelector('.verify-text');
+            
+            pTrans.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-xs"></i> 重新翻譯...';
+            pVerify.innerText = '重新驗證...';
+            
+            const transBtn = document.getElementById(`btn-tts-${id}`);
+            if (transBtn) transBtn.classList.add('hidden');
+
+            try {
+                const trans = await fetchTranslate(newText, sLang, tLang);
+                updateBubbleTrans(id, trans, true, tLang);
+                
+                if (trans && trans !== "API 錯誤") {
+                    const backTrans = await fetchTranslate(trans, tLang, sLang);
+                    updateBubbleVerify(id, backTrans);
+                }
+            } catch (e) {
+                updateBubbleTrans(id, "翻譯失敗", false);
+            }
+        }
+
+        // ======================
+        // 5. 控制邏輯
+        // ======================
+
+        function stopEverything() {
+            App.isStarting = false;
+            if (App.recognition) {
+                App.recognition.onend = null;
+                try { App.recognition.abort(); } catch(e){}
+                App.recognition = null;
+            }
+            App.isRecording = false;
+            App.meetingTrack = null;
+            resetMeetingUI();
+            UI.preview.box.classList.add('hidden');
+            UI.btns.ptt.classList.remove('btn-mic-hold');
+        }
+
+        function startPTT(e) {
+            if (e.type === 'touchstart') {
+                App.isTouch = true;
+                e.preventDefault();
+            } else if (e.type === 'mousedown' && App.isTouch) return;
+            
+            if (App.mode !== 'chat') return;
+            if (App.isRecording || App.isStarting) return;
+
+            App.isStarting = true;
+            const rec = initRecognition('chat');
+            try { rec.start(); } catch(e) { 
+                console.error(e); 
+                App.isStarting = false; 
+            }
+        }
+
+        function stopPTT(e) {
+            if (e.type === 'touchend') e.preventDefault();
+            if (App.mode !== 'chat') return;
+            if (App.recognition) App.recognition.stop(); 
+        }
+
+        function toggleMeeting(track) {
+            if (App.isStarting) return;
+            
+            if (App.meetingTrack === track) {
+                stopEverything(); 
+                return;
+            }
+
+            stopEverything();
+            App.meetingTrack = track;
+            
+            if (track === 'src') UI.btns.mSrc.classList.add('meeting-active-src');
+            else UI.btns.mTgt.classList.add('meeting-active-tgt');
+
+            App.isStarting = true;
+            setTimeout(() => {
+                if (App.meetingTrack === null) {
+                    App.isStarting = false;
+                    return; 
+                }
+                const rec = initRecognition(track);
+                try { 
+                    rec.start(); 
+                } catch(e) {
+                    console.error("Meeting start failed", e);
+                    showToast("請重試");
+                    stopEverything();
+                }
+            }, 200);
+        }
+
+        function switchMode(mode) {
+            stopEverything();
+            App.mode = mode;
+            if (mode === 'chat') {
+                UI.tabs.chat.classList.add('active');
+                UI.tabs.meeting.classList.remove('active');
+                UI.ctrls.chat.classList.remove('hidden');
+                UI.ctrls.meeting.classList.add('hidden');
+            } else {
+                UI.tabs.meeting.classList.add('active');
+                UI.tabs.chat.classList.remove('active');
+                UI.ctrls.meeting.classList.remove('hidden');
+                UI.ctrls.chat.classList.add('hidden');
+                updateLabels();
+            }
+        }
+
+        // ======================
+        // 6. UI 輔助
+        // ======================
+        function addBubble(orig, trans, verify, align, sLang, tLang) {
+            UI.welcome.classList.add('hidden');
+            const id = 'msg-' + Date.now() + Math.random().toString(36).substr(2);
+            const alignClass = align === 'right' ? 'items-end' : 'items-start';
+            const bubbleColor = align === 'right' ? 'bg-white border-r-4 border-blue-500' : 'bg-white border-l-4 border-orange-400'; 
+            const label = sLang.toUpperCase().replace('-VN','').replace('-TW','').replace('-US','');
+            const escOrig = orig.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+            
+            const html = `
+                <div id="${id}" class="flex flex-col ${alignClass} fade-in-up w-full">
+                    <div class="max-w-[90%] ${bubbleColor} p-3 rounded-xl shadow-sm border border-slate-200">
+                        <div class="flex justify-between mb-1 opacity-60 text-xs">
+                            <span class="font-bold text-slate-500">${label}</span>
+                            <span>${new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</span>
+                        </div>
+                        
+                        <div class="flex items-start gap-2 mb-2">
+                            <p id="orig-${id}" 
+                               class="text-slate-800 text-lg flex-1 outline-none border-b border-transparent hover:border-slate-300 focus:border-blue-500 focus:bg-yellow-50 transition-all rounded px-1 cursor-text" 
+                               contenteditable="true"
+                               onblur="reTranslate('${id}', '${sLang}', '${tLang}')"
+                               onkeydown="handleEditKey(event, '${id}', '${sLang}', '${tLang}')"
+                               title="點擊編輯"
+                            >${orig}</p>
+                            <button id="btn-speak-orig-${id}" onclick="speakText('${escOrig}', '${sLang}')" class="speak-btn shrink-0 mt-1">
+                                <i class="fa-solid fa-volume-high"></i>
+                            </button>
+                        </div>
+
+                        <div class="pt-2 border-t border-slate-100">
+                            <div class="flex items-start gap-2">
+                                <p class="trans-text text-base font-medium text-blue-700 flex-1 flex items-center gap-2">
+                                    <i class="fa-solid fa-spinner fa-spin text-xs"></i> ${trans}
+                                </p>
+                                <button id="btn-tts-${id}" class="speak-btn shrink-0 mt-1 hidden">
+                                    <i class="fa-solid fa-volume-high"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="mt-1 pt-1">
+                            <div class="flex items-center gap-1 text-xs text-slate-400 bg-slate-50 p-1.5 rounded">
+                                <i class="fa-solid fa-rotate-left text-xs"></i>
+                                <span class="font-bold">回譯驗證:</span>
+                                <span class="verify-text italic flex-1">${verify}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            UI.stream.insertAdjacentHTML('beforeend', html);
+            UI.container.scrollTop = UI.container.scrollHeight;
+            return id;
+        }
+
+        function updateBubbleTrans(id, text, success, tLang) {
+            const el = document.getElementById(id);
+            if(!el) return;
+            
+            const p = el.querySelector('.trans-text');
+            p.innerHTML = text;
+            p.className = success ? 'trans-text text-lg font-bold text-blue-700 flex-1' : 'trans-text text-base text-red-500 flex-1';
+            
+            if (success) {
+                const btn = document.getElementById(`btn-tts-${id}`);
+                if (btn) {
+                    const escText = text.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+                    btn.setAttribute('onclick', `speakText('${escText}', '${tLang}')`);
+                    btn.classList.remove('hidden');
+                }
+            }
+        }
+
+        function updateBubbleVerify(id, text) {
+            const el = document.getElementById(id);
+            if(!el) return;
+            const p = el.querySelector('.verify-text');
+            p.innerText = text;
+        }
+
+        function speakText(text, lang) {
+            window.speechSynthesis.cancel(); 
+            const u = new SpeechSynthesisUtterance(text);
+            let voiceLang = 'en-US';
+            if (lang.includes('zh') || lang.includes('TW')) voiceLang = 'zh-TW';
+            else if (lang.includes('vi')) voiceLang = 'vi-VN';
+            u.lang = voiceLang;
+            u.rate = 0.9; 
+            window.speechSynthesis.speak(u);
+        }
+
+        function resetMeetingUI() {
+            UI.btns.mSrc.classList.remove('meeting-active-src');
+            UI.btns.mTgt.classList.remove('meeting-active-tgt');
+        }
+
+        function updateLabels() {
+            const s = UI.inputs.source;
+            const t = UI.inputs.target;
+            const sT = s.options[s.selectedIndex].text.split(' ')[0];
+            const tT = t.options[t.selectedIndex].text.split(' ')[0];
+            document.getElementById('label-src').innerText = `講${sT}`;
+            document.getElementById('label-tgt').innerText = `講${tT}`;
+        }
+
+        function showToast(msg) {
+            UI.toast.msg.innerText = msg;
+            UI.toast.box.classList.remove('hidden');
+            setTimeout(()=>UI.toast.box.classList.add('hidden'), 3000);
+        }
+
+        function swapLanguages() {
+            stopEverything();
+            const temp = UI.inputs.source.value;
+            UI.inputs.source.value = UI.inputs.target.value;
+            UI.inputs.target.value = temp;
+            updateLabels();
+            const i = document.querySelector('#swapBtn i');
+            i.style.transform = 'rotate(180deg)';
+            setTimeout(()=>i.style.transform='rotate(0deg)', 300);
+        }
+        
+        function handleTextSend() {
+            const val = UI.inputs.text.value.trim();
+            if(!val) return;
+            UI.inputs.text.value = '';
+            UI.inputs.text.style.height = 'auto';
+            processText(val);
+        }
+        
+        function closeKeyboard() { 
+            if (document.activeElement === UI.inputs.text) {
+                UI.inputs.text.blur(); 
+            }
+        }
+
+        // Events
+        UI.inputs.source.addEventListener('change', updateLabels);
+        UI.inputs.target.addEventListener('change', updateLabels);
+        UI.inputs.text.addEventListener('keydown', e => { if(e.key==='Enter' && !e.shiftKey) { e.preventDefault(); handleTextSend(); }});
+        UI.inputs.text.addEventListener('input', function(){ this.style.height='auto'; this.style.height=this.scrollHeight+'px'; });
+
+        // PTT Bindings
+        const btn = UI.btns.ptt;
+        btn.addEventListener('mousedown', startPTT);
+        btn.addEventListener('touchstart', startPTT, {passive:false});
+        btn.addEventListener('mouseup', stopPTT);
+        btn.addEventListener('touchend', stopPTT, {passive:false});
+        btn.addEventListener('mouseleave', stopPTT);
+        
+        // Meeting Buttons
+        UI.btns.mSrc.addEventListener('click', () => toggleMeeting('src'));
+        UI.btns.mTgt.addEventListener('click', () => toggleMeeting('tgt'));
+        
+        // Init
+        updateLabels();
+
+    </script>
+</body>
+</html>
