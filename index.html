@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>ProTranslate v33 - Win語音修復版</title>
+    <title>ProTranslate v34 - 語音嚴格鎖定版</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src='https://unpkg.com/tesseract.js@v5/dist/tesseract.min.js'></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -65,7 +65,7 @@
         <div class="flex justify-between items-center px-4 py-3 border-b border-slate-100">
             <div class="flex items-center gap-2 text-blue-600 font-bold text-lg">
                 <i class="fa-solid fa-volume-high"></i>
-                <span>ProTranslate <span class="text-[10px] bg-blue-50 text-blue-600 px-1.5 rounded ml-1 align-top">v33</span></span>
+                <span>ProTranslate <span class="text-[10px] bg-blue-50 text-blue-600 px-1.5 rounded ml-1 align-top">v34</span></span>
             </div>
             <div class="flex items-center bg-slate-100 rounded-lg p-1 gap-1 text-sm">
                 <select id="sourceLang" class="bg-transparent font-bold text-slate-700 outline-none px-2 py-1 cursor-pointer w-24">
@@ -93,11 +93,10 @@
     <div id="main-container" class="flex-1 overflow-y-auto custom-scroll p-4 space-y-4 bg-[#f8fafc] pb-32 relative" onclick="closeKeyboard()">
         <div id="welcome-msg" class="flex flex-col items-center justify-center h-full text-slate-400 text-center opacity-60">
             <div class="relative mb-4">
-                <i class="fa-brands fa-windows text-5xl mr-2"></i>
-                <i class="fa-brands fa-apple text-5xl ml-2"></i>
+                <i class="fa-solid fa-lock text-5xl"></i>
             </div>
-            <p class="text-sm font-medium">Win: Google API / iOS: Native</p>
-            <p class="text-xs mt-2">googleapis.com Optimized</p>
+            <p class="text-sm font-medium">語音鎖定功能已啟用</p>
+            <p class="text-xs mt-2">嚴格執行語言對應</p>
         </div>
         <div id="message-stream" class="flex flex-col gap-4 pb-4"></div>
         <div id="speech-preview" class="hidden sticky bottom-2 mx-auto bg-slate-800/90 backdrop-blur text-white px-5 py-3 rounded-full shadow-lg text-sm max-w-[90%] text-center z-10 border border-slate-600/50">
@@ -128,7 +127,6 @@
     </div>
 
     <!-- Bottom Controls -->
-    <!-- Chat -->
     <div id="ctrl-chat" class="bg-white border-t border-slate-200 p-3 pb-6 flex flex-col gap-2 z-30 shadow-[0_-4px_20px_rgba(0,0,0,0.05)] transition-transform duration-300">
         <div class="flex items-end gap-2">
             <button onclick="triggerCamera()" class="shrink-0 w-12 h-12 rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-blue-600 active:scale-95 transition-all flex items-center justify-center relative"><i class="fa-solid fa-camera text-xl"></i></button>
@@ -139,7 +137,6 @@
         </div>
         <p class="text-center text-[10px] text-slate-400">按住說話 / 貼上圖片 / 點擊拍照</p>
     </div>
-    <!-- Meeting -->
     <div id="ctrl-meeting" class="hidden bg-white border-t border-slate-200 p-4 pb-8 z-30 shadow-[0_-4px_20px_rgba(0,0,0,0.05)]">
         <div class="flex justify-center gap-4">
             <button id="btn-meeting-src" onclick="toggleMeetingTrack('src')" class="flex-1 h-16 rounded-2xl border-2 border-slate-200 bg-slate-50 text-slate-600 flex flex-col items-center justify-center gap-1 hover:bg-slate-100 active:scale-95 transition-all">
@@ -168,37 +165,32 @@
             ocrOverlay: document.getElementById('ocr-overlay'), ocrStatus: document.getElementById('ocr-status'), ocrBar: document.getElementById('ocr-progress-bar'), dragOverlay: document.getElementById('drag-overlay'), toast: { box: document.getElementById('toast'), msg: document.getElementById('toast-msg') }
         };
 
-        // === VOICE PLAYBACK (GOOGLEAPI.COM FIX) ===
+        // === VOICE PLAYBACK (STRICT LOCK) ===
         function speakText(text, lang) {
-            // 1. Stop current
             window.speechSynthesis.cancel();
             if (window.currentAudio) { window.currentAudio.pause(); window.currentAudio = null; }
 
-            // 2. Detect Platform (iOS Bypass)
-            const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-
-            // 3. Language Codes
             let gLang = 'en';
             if (lang.includes('zh') || lang.includes('TW')) gLang = 'zh-TW';
             else if (lang.includes('vi')) gLang = 'vi';
             let nLang = (gLang === 'vi') ? 'vi-VN' : gLang;
 
-            // iOS MUST use Native
+            // Detect iOS
+            const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
             if (isIOS) {
                 fallbackToNativeTTS(text, nLang);
                 return;
             }
 
-            // Windows/Android -> Use translate.googleapis.com (Most stable)
+            // Windows/Android: Force Google
             const url = `https://translate.googleapis.com/translate_tts?client=gtx&ie=UTF-8&tl=${gLang}&q=${encodeURIComponent(text)}`;
-            
             const audio = new Audio(url);
             window.currentAudio = audio;
-            
             const playPromise = audio.play();
             if (playPromise !== undefined) {
                 playPromise.catch(error => {
-                    console.warn("Google API TTS failed, fallback to native:", error);
+                    console.warn("Google TTS blocked, fallback to native:", error);
                     fallbackToNativeTTS(text, nLang);
                 });
             }
@@ -209,16 +201,39 @@
             u.lang = langCode;
             u.rate = 0.9; 
 
+            // === STRICT VOICE SELECTION (ANTI-AUTO-DETECT) ===
             const voices = window.speechSynthesis.getVoices();
             let targetVoice = null;
-            if (langCode.includes('vi')) targetVoice = voices.find(v => v.lang.includes('vi') || v.name.includes('Viet') || v.name.includes('Tiếng Việt'));
-            else if (langCode.includes('zh')) targetVoice = voices.find(v => v.lang.includes('zh-TW') || v.name.includes('Taiwan') || v.name.includes('Han'));
-            
-            if (targetVoice) u.voice = targetVoice;
-            else if (langCode.includes('vi') && !/iPad|iPhone|iPod/.test(navigator.userAgent)) {
-                // Show warning only on Windows/Android if VN voice is missing and Google failed
-                showToast("Windows缺少越文語音包"); 
+
+            // Priority List for iOS/Mac
+            const voicePrefs = {
+                'zh-TW': ['Meijia', 'Tingting', 'Sin-ji', 'Mei-Jia', 'Chinese (Taiwan)'],
+                'vi-VN': ['Linh', 'An', 'Vietnamese'],
+                'en-US': ['Samantha', 'Siri', 'Alex']
+            };
+
+            // Find specific voice
+            const tryFind = (code) => {
+                const prefs = voicePrefs[code] || [];
+                for (let name of prefs) {
+                    const v = voices.find(v => v.name.includes(name));
+                    if (v) return v;
+                }
+                return voices.find(v => v.lang === code);
+            };
+
+            // Determine which list to use
+            if (langCode.includes('vi')) targetVoice = tryFind('vi-VN');
+            else if (langCode.includes('zh')) targetVoice = tryFind('zh-TW');
+            else targetVoice = tryFind('en-US');
+
+            if (targetVoice) {
+                u.voice = targetVoice;
+            } else if (langCode.includes('vi') && !/iPad|iPhone|iPod/.test(navigator.userAgent)) {
+                 // Only show warning on Windows if completely missing
+                 // On iOS, it usually falls back gracefully if we don't force english
             }
+
             window.speechSynthesis.speak(u);
         }
         window.speechSynthesis.getVoices();
