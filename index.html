@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>ProTranslate v24 - 拖曳貼上辨識版</title>
+    <title>ProTranslate v26 - 萬能語音優化版</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Tesseract.js for OCR -->
     <script src='https://unpkg.com/tesseract.js@v5/dist/tesseract.min.js'></script>
@@ -16,6 +16,8 @@
             background-color: #f8fafc;
             overscroll-behavior: none;
             -webkit-tap-highlight-color: transparent;
+            user-select: none;
+            -webkit-user-select: none;
         }
 
         /* === 捲軸美化 === */
@@ -42,8 +44,6 @@
         #btn-ptt {
             touch-action: none;
             -webkit-touch-callout: none;
-            user-select: none;
-            -webkit-user-select: none;
         }
 
         /* === 會議模式按鈕狀態 === */
@@ -93,13 +93,16 @@
             background-color: #fff; 
             border-bottom: 1px dashed #94a3b8;
         }
+        [contenteditable]:hover {
+            background-color: #fff; 
+            cursor: text;
+        }
 
         /* OCR Overlay */
         #ocr-overlay, #drag-overlay {
             backdrop-filter: blur(5px);
         }
         
-        /* Drag Overlay Dashed Box */
         .drag-box {
             border: 4px dashed #60a5fa;
             background-color: rgba(239, 246, 255, 0.8);
@@ -112,8 +115,8 @@
     <div class="bg-white shadow-sm z-20 shrink-0">
         <div class="flex justify-between items-center px-4 py-3 border-b border-slate-100">
             <div class="flex items-center gap-2 text-blue-600 font-bold text-lg">
-                <i class="fa-solid fa-camera-rotate"></i>
-                <span>ProTranslate <span class="text-[10px] bg-blue-50 text-blue-600 px-1.5 rounded ml-1 align-top">v24</span></span>
+                <i class="fa-solid fa-bullhorn"></i>
+                <span>ProTranslate <span class="text-[10px] bg-blue-50 text-blue-600 px-1.5 rounded ml-1 align-top">v26 Voice</span></span>
             </div>
             <!-- 語言切換區 -->
             <div class="flex items-center bg-slate-100 rounded-lg p-1 gap-1 text-sm">
@@ -150,11 +153,10 @@
         
         <div id="welcome-msg" class="flex flex-col items-center justify-center h-full text-slate-400 text-center opacity-60">
             <div class="relative mb-4">
-                <i class="fa-solid fa-image text-5xl"></i>
-                <i class="fa-solid fa-paste absolute -bottom-2 -right-2 text-2xl bg-white p-1 rounded-full text-blue-500"></i>
+                <i class="fa-solid fa-headphones text-5xl"></i>
             </div>
-            <p class="text-sm font-medium">支援圖片拖曳與貼上</p>
-            <p class="text-xs mt-2">Ctrl+V 直接辨識</p>
+            <p class="text-sm font-medium">自然語音引擎已優化</p>
+            <p class="text-xs mt-2">支援 Google 真人發音 (Google TTS)</p>
         </div>
 
         <div id="message-stream" class="flex flex-col gap-4 pb-4"></div>
@@ -176,7 +178,6 @@
         <div class="drag-box w-full h-full rounded-3xl flex flex-col items-center justify-center text-blue-500 animate-pulse">
             <i class="fa-solid fa-cloud-arrow-up text-8xl mb-6"></i>
             <h2 class="text-3xl font-bold">放開以辨識圖片</h2>
-            <p class="text-slate-500 mt-2">支援 JPG, PNG, BMP</p>
         </div>
     </div>
 
@@ -279,130 +280,159 @@
         };
 
         // ======================
-        // 1. OCR & Image Handling (New)
+        // 1. 語音播放引擎 (Voice Optimizer)
+        // ======================
+        
+        function speakText(text, lang) {
+            // 停止目前的播放
+            window.speechSynthesis.cancel();
+            if (window.currentAudio) {
+                window.currentAudio.pause();
+                window.currentAudio = null;
+            }
+
+            // 判斷語言代碼 (Google API 格式)
+            let gLang = 'en';
+            if (lang.includes('zh') || lang.includes('TW')) gLang = 'zh-TW';
+            else if (lang.includes('vi')) gLang = 'vi';
+
+            // 對應的本地語言代碼
+            let nLang = (gLang === 'vi') ? 'vi-VN' : gLang;
+
+            // --- 策略 1: 嘗試 Google 雲端發音 (最自然) ---
+            // 注意：這在 iOS 上可能需要使用者互動觸發，但我們綁定在 click 事件上通常沒問題
+            const url = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(text)}&tl=${gLang}&client=tw-ob`;
+            
+            const audio = new Audio(url);
+            window.currentAudio = audio;
+
+            // 嘗試播放
+            const playPromise = audio.play();
+
+            if (playPromise !== undefined) {
+                playPromise.catch(error => {
+                    console.warn("Google TTS blocked/failed, switching to Native fallback:", error);
+                    
+                    // --- 策略 2: 瀏覽器內建 (Fallback) ---
+                    fallbackToNativeTTS(text, nLang);
+                });
+            }
+        }
+
+        function fallbackToNativeTTS(text, langCode) {
+            const u = new SpeechSynthesisUtterance(text);
+            u.lang = langCode;
+            u.rate = 0.9; // 語速稍慢較清晰
+
+            // 強制尋找正確的語音包
+            // Windows 上如果沒裝越南語音包，預設會用英文念，導致拼音
+            // 我們嘗試遍歷所有聲音，找到包含 'Viet' 或 'VN' 的
+            const voices = window.speechSynthesis.getVoices();
+            let targetVoice = null;
+
+            if (langCode.includes('vi')) {
+                targetVoice = voices.find(v => v.lang.includes('vi') || v.name.includes('Viet'));
+            } else if (langCode.includes('zh')) {
+                targetVoice = voices.find(v => v.lang.includes('zh-TW') || v.name.includes('Taiwan') || v.name.includes('Han'));
+            }
+
+            if (targetVoice) {
+                u.voice = targetVoice;
+            } else {
+                if (langCode.includes('vi')) {
+                    // 如果真的找不到越南語音，與其念字母，不如跳提示
+                    // 但為了體驗，我們還是讓它念，只是可能不準
+                    console.warn("System lacks Vietnamese voice pack.");
+                    showToast("您的裝置缺少越南語音包，建議安裝以獲得最佳體驗");
+                }
+            }
+
+            window.speechSynthesis.speak(u);
+        }
+
+        // 預先加載語音列表 (Chrome 需要)
+        window.speechSynthesis.getVoices();
+
+
+        // ======================
+        // 2. OCR & Image Handling
         // ======================
         
         function triggerCamera() {
             UI.inputs.camera.click();
         }
 
-        // 統一處理圖片輸入 (File Input / Paste / Drop)
         async function processImageFile(file) {
             if (!file) return;
-            
-            // UI Loading
             UI.ocrOverlay.classList.remove('hidden');
             UI.ocrStatus.innerText = "準備辨識引擎...";
 
-            // Map language code for Tesseract
-            const langMap = {
-                'zh-TW': 'chi_tra',
-                'vi-VN': 'vie',
-                'en-US': 'eng'
-            };
+            const langMap = { 'zh-TW': 'chi_tra', 'vi-VN': 'vie', 'en-US': 'eng' };
             const sourceCode = UI.inputs.source.value;
             const tesseractLang = langMap[sourceCode] || 'eng';
 
             try {
                 UI.ocrStatus.innerText = `正在讀取圖片...`;
-                
                 const { data: { text } } = await Tesseract.recognize(
-                    file,
-                    tesseractLang,
-                    {
-                        logger: m => {
-                            if(m.status === 'recognizing text') {
-                                UI.ocrStatus.innerText = `智慧辨識中... ${Math.round(m.progress * 100)}%`;
-                            }
-                        }
-                    }
+                    file, tesseractLang,
+                    { logger: m => { if(m.status === 'recognizing text') UI.ocrStatus.innerText = `智慧辨識中... ${Math.round(m.progress * 100)}%`; } }
                 );
 
                 UI.ocrOverlay.classList.add('hidden');
-                
                 const cleanText = text.replace(/\s+/g, ' ').trim();
                 if (cleanText.length > 0) {
-                    processText(cleanText); // Send to translation
+                    processText(cleanText);
                     showToast("辨識成功！");
                 } else {
                     showToast("未偵測到清晰文字");
                 }
-
             } catch (error) {
                 console.error(error);
                 UI.ocrOverlay.classList.add('hidden');
                 showToast("辨識失敗，請重試");
             }
+            // input.value is cleared by caller or ignored for drag/paste
         }
 
-        // File Input Change
         function handleImageUpload(input) {
             if (input.files && input.files[0]) {
                 processImageFile(input.files[0]);
-                input.value = ''; // Reset
+                input.value = '';
             }
         }
 
-        // === Paste Event Handler ===
         document.addEventListener('paste', (e) => {
             const items = (e.clipboardData || e.originalEvent.clipboardData).items;
             for (let item of items) {
                 if (item.type.startsWith('image/')) {
                     e.preventDefault();
-                    const file = item.getAsFile();
-                    processImageFile(file);
+                    processImageFile(item.getAsFile());
                     return;
                 }
             }
         });
 
-        // === Drag & Drop Handlers ===
         const body = document.body;
         let dragCounter = 0;
-
-        body.addEventListener('dragenter', (e) => {
-            e.preventDefault();
-            dragCounter++;
-            UI.dragOverlay.classList.remove('hidden');
-        });
-
-        body.addEventListener('dragleave', (e) => {
-            e.preventDefault();
-            dragCounter--;
-            if (dragCounter === 0) {
-                UI.dragOverlay.classList.add('hidden');
-            }
-        });
-
-        body.addEventListener('dragover', (e) => {
-            e.preventDefault(); // Necessary to allow dropping
-        });
-
+        body.addEventListener('dragenter', (e) => { e.preventDefault(); dragCounter++; UI.dragOverlay.classList.remove('hidden'); });
+        body.addEventListener('dragleave', (e) => { e.preventDefault(); dragCounter--; if (dragCounter === 0) UI.dragOverlay.classList.add('hidden'); });
+        body.addEventListener('dragover', (e) => { e.preventDefault(); });
         body.addEventListener('drop', (e) => {
-            e.preventDefault();
-            dragCounter = 0;
-            UI.dragOverlay.classList.add('hidden');
-
+            e.preventDefault(); dragCounter = 0; UI.dragOverlay.classList.add('hidden');
             if (e.dataTransfer.files && e.dataTransfer.files[0]) {
                 const file = e.dataTransfer.files[0];
-                if (file.type.startsWith('image/')) {
-                    processImageFile(file);
-                } else {
-                    showToast("請拖曳圖片檔案");
-                }
+                if (file.type.startsWith('image/')) processImageFile(file);
+                else showToast("請拖曳圖片檔案");
             }
         });
 
         // ======================
-        // 2. 語音引擎 (Unified Core)
+        // 3. 語音辨識引擎
         // ======================
         
         function initRecognition(trackOrMode) {
             if (App.recognition) {
-                try { 
-                    App.recognition.onend = null; 
-                    App.recognition.abort(); 
-                } catch(e){}
+                try { App.recognition.onend = null; App.recognition.abort(); } catch(e){}
                 App.recognition = null;
             }
 
@@ -413,7 +443,6 @@
             }
 
             const rec = new SpeechRecognition();
-            
             rec.continuous = false; 
             rec.interimResults = true;
             rec.maxAlternatives = 1;
@@ -444,27 +473,20 @@
             rec.onresult = (event) => {
                 if (App.mode === 'meeting') {
                     clearTimeout(App.silenceTimer);
-                    App.silenceTimer = setTimeout(() => {
-                         try { rec.stop(); } catch(e){} 
-                    }, App.SILENCE_MS);
+                    App.silenceTimer = setTimeout(() => { try { rec.stop(); } catch(e){} }, App.SILENCE_MS);
                 }
 
                 let interim = '';
                 let final = '';
-
                 for (let i = event.resultIndex; i < event.results.length; ++i) {
-                    if (event.results[i].isFinal) {
-                        final += event.results[i][0].transcript;
-                    } else {
-                        interim += event.results[i][0].transcript;
-                    }
+                    if (event.results[i].isFinal) final += event.results[i][0].transcript;
+                    else interim += event.results[i][0].transcript;
                 }
 
                 if (interim.length > 0) {
                     App.tempTranscript = interim; 
                     UI.preview.text.textContent = interim;
                 }
-
                 if (final.trim()) {
                     processText(final);
                     App.tempTranscript = ''; 
@@ -488,9 +510,7 @@
                             const newRec = initRecognition(App.meetingTrack);
                             if(newRec) {
                                 App.isStarting = true;
-                                try { newRec.start(); } catch(e){ 
-                                    App.isStarting = false;
-                                }
+                                try { newRec.start(); } catch(e){ App.isStarting = false; }
                             }
                         }
                     }, 300);
@@ -513,7 +533,7 @@
         }
 
         // ======================
-        // 3. 業務邏輯 (AI Verify & Translate)
+        // 4. 翻譯邏輯
         // ======================
 
         async function processText(text) {
@@ -550,7 +570,6 @@
                 } else {
                     updateBubbleVerify(msgId, "無法驗證");
                 }
-
             } catch (e) {
                 updateBubbleTrans(msgId, "翻譯失敗", false);
                 updateBubbleVerify(msgId, "---");
@@ -564,16 +583,11 @@
             try {
                 let gs = s.includes('vi') ? 'vi' : s.replace('zh-TW', 'zh-TW');
                 let gt = t.includes('vi') ? 'vi' : t.replace('zh-TW', 'zh-TW');
-                
                 const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${gs}&tl=${gt}&dt=t&q=${encodeURIComponent(text)}`;
-                
                 const res = await fetch(url, { signal: controller.signal });
                 if (!res.ok) throw new Error("G-Err");
-                
                 const data = await res.json();
-                if (data && data[0]) {
-                    return data[0].map(x => x[0]).join('');
-                }
+                if (data && data[0]) return data[0].map(x => x[0]).join('');
                 throw new Error("No Data");
             } catch (e) {
                 console.log("Translation Error:", e);
@@ -582,7 +596,7 @@
         }
 
         // ======================
-        // 4. 編輯與重譯
+        // 5. 編輯與重譯
         // ======================
 
         function handleEditKey(e, id, sLang, tLang) {
@@ -595,7 +609,6 @@
         async function reTranslate(id, sLang, tLang) {
             const origEl = document.getElementById('orig-' + id);
             if (!origEl) return;
-            
             const newText = origEl.innerText.trim();
             if (!newText) return; 
 
@@ -608,7 +621,6 @@
             const el = document.getElementById(id);
             const pTrans = el.querySelector('.trans-text');
             const pVerify = el.querySelector('.verify-text');
-            
             pTrans.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-xs"></i> 重新翻譯...';
             pVerify.innerText = '重新驗證...';
             
@@ -618,7 +630,6 @@
             try {
                 const trans = await fetchTranslate(newText, sLang, tLang);
                 updateBubbleTrans(id, trans, true, tLang);
-                
                 if (trans && trans !== "API 錯誤") {
                     const backTrans = await fetchTranslate(trans, tLang, sLang);
                     updateBubbleVerify(id, backTrans);
@@ -629,7 +640,7 @@
         }
 
         // ======================
-        // 5. 控制邏輯
+        // 6. 控制邏輯
         // ======================
 
         function stopEverything() {
@@ -647,20 +658,15 @@
         }
 
         function startPTT(e) {
-            if (e.type === 'touchstart') {
-                App.isTouch = true;
-                e.preventDefault();
-            } else if (e.type === 'mousedown' && App.isTouch) return;
+            if (e.type === 'touchstart') { App.isTouch = true; e.preventDefault(); }
+            else if (e.type === 'mousedown' && App.isTouch) return;
             
             if (App.mode !== 'chat') return;
             if (App.isRecording || App.isStarting) return;
 
             App.isStarting = true;
             const rec = initRecognition('chat');
-            try { rec.start(); } catch(e) { 
-                console.error(e); 
-                App.isStarting = false; 
-            }
+            try { rec.start(); } catch(e) { console.error(e); App.isStarting = false; }
         }
 
         function stopPTT(e) {
@@ -671,28 +677,18 @@
 
         function toggleMeeting(track) {
             if (App.isStarting) return;
-            
-            if (App.meetingTrack === track) {
-                stopEverything(); 
-                return;
-            }
+            if (App.meetingTrack === track) { stopEverything(); return; }
 
             stopEverything();
             App.meetingTrack = track;
-            
             if (track === 'src') UI.btns.mSrc.classList.add('meeting-active-src');
             else UI.btns.mTgt.classList.add('meeting-active-tgt');
 
             App.isStarting = true;
             setTimeout(() => {
-                if (App.meetingTrack === null) {
-                    App.isStarting = false;
-                    return; 
-                }
+                if (App.meetingTrack === null) { App.isStarting = false; return; }
                 const rec = initRecognition(track);
-                try { 
-                    rec.start(); 
-                } catch(e) {
+                try { rec.start(); } catch(e) {
                     console.error("Meeting start failed", e);
                     showToast("請重試");
                     stopEverything();
@@ -718,7 +714,7 @@
         }
 
         // ======================
-        // 6. UI 輔助
+        // 7. UI Render
         // ======================
         function addBubble(orig, trans, verify, align, sLang, tLang) {
             UI.welcome.classList.add('hidden');
@@ -735,7 +731,6 @@
                             <span class="font-bold text-slate-500">${label}</span>
                             <span>${new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</span>
                         </div>
-                        
                         <div class="flex items-start gap-2 mb-2">
                             <p id="orig-${id}" 
                                class="text-slate-800 text-lg flex-1 outline-none border-b border-transparent hover:border-slate-300 focus:border-blue-500 focus:bg-yellow-50 transition-all rounded px-1 cursor-text" 
@@ -744,26 +739,24 @@
                                onkeydown="handleEditKey(event, '${id}', '${sLang}', '${tLang}')"
                                title="點擊編輯"
                             >${orig}</p>
-                            <button id="btn-speak-orig-${id}" onclick="speakText('${escOrig}', '${sLang}')" class="speak-btn shrink-0 mt-1">
-                                <i class="fa-solid fa-volume-high"></i>
+                            <button id="btn-speak-orig-${id}" onclick="speakText('${escOrig}', '${sLang}')" class="speak-btn shrink-0 mt-1" title="朗讀原文">
+                                <i class="fa-solid fa-volume-high text-lg"></i>
                             </button>
                         </div>
-
                         <div class="pt-2 border-t border-slate-100">
                             <div class="flex items-start gap-2">
                                 <p class="trans-text text-base font-medium text-blue-700 flex-1 flex items-center gap-2">
                                     <i class="fa-solid fa-spinner fa-spin text-xs"></i> ${trans}
                                 </p>
-                                <button id="btn-tts-${id}" class="speak-btn shrink-0 mt-1 hidden">
-                                    <i class="fa-solid fa-volume-high"></i>
+                                <button id="btn-tts-${id}" class="speak-btn shrink-0 mt-1 hidden" title="朗讀翻譯">
+                                    <i class="fa-solid fa-volume-high text-lg"></i>
                                 </button>
                             </div>
                         </div>
-
                         <div class="mt-1 pt-1">
                             <div class="flex items-center gap-1 text-xs text-slate-400 bg-slate-50 p-1.5 rounded">
                                 <i class="fa-solid fa-rotate-left text-xs"></i>
-                                <span class="font-bold">回譯驗證:</span>
+                                <span class="font-bold">回譯:</span>
                                 <span class="verify-text italic flex-1">${verify}</span>
                             </div>
                         </div>
@@ -778,7 +771,6 @@
         function updateBubbleTrans(id, text, success, tLang) {
             const el = document.getElementById(id);
             if(!el) return;
-            
             const p = el.querySelector('.trans-text');
             p.innerHTML = text;
             p.className = success ? 'trans-text text-lg font-bold text-blue-700 flex-1' : 'trans-text text-base text-red-500 flex-1';
@@ -798,17 +790,6 @@
             if(!el) return;
             const p = el.querySelector('.verify-text');
             p.innerText = text;
-        }
-
-        function speakText(text, lang) {
-            window.speechSynthesis.cancel(); 
-            const u = new SpeechSynthesisUtterance(text);
-            let voiceLang = 'en-US';
-            if (lang.includes('zh') || lang.includes('TW')) voiceLang = 'zh-TW';
-            else if (lang.includes('vi')) voiceLang = 'vi-VN';
-            u.lang = voiceLang;
-            u.rate = 0.9; 
-            window.speechSynthesis.speak(u);
         }
 
         function resetMeetingUI() {
@@ -851,9 +832,7 @@
         }
         
         function closeKeyboard() { 
-            if (document.activeElement === UI.inputs.text) {
-                UI.inputs.text.blur(); 
-            }
+            if (document.activeElement === UI.inputs.text) UI.inputs.text.blur(); 
         }
 
         // Events
@@ -870,7 +849,6 @@
         btn.addEventListener('touchend', stopPTT, {passive:false});
         btn.addEventListener('mouseleave', stopPTT);
         
-        // Meeting Buttons
         UI.btns.mSrc.addEventListener('click', () => toggleMeeting('src'));
         UI.btns.mTgt.addEventListener('click', () => toggleMeeting('tgt'));
         
