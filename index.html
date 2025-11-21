@@ -3,9 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>ProTranslate v25 - 全能修復版</title>
+    <title>ProTranslate v26 - 萬能語音優化版</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Tesseract.js (OCR) -->
+    <!-- Tesseract.js for OCR -->
     <script src='https://unpkg.com/tesseract.js@v5/dist/tesseract.min.js'></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Roboto:wght@400;500&display=swap" rel="stylesheet">
@@ -16,20 +16,23 @@
             background-color: #f8fafc;
             overscroll-behavior: none;
             -webkit-tap-highlight-color: transparent;
-            user-select: none; /* 禁止選取，APP化體驗 */
+            user-select: none;
             -webkit-user-select: none;
         }
 
-        /* 捲軸 */
+        /* === 捲軸美化 === */
         .custom-scroll::-webkit-scrollbar { width: 4px; }
         .custom-scroll::-webkit-scrollbar-track { background: transparent; }
         .custom-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 2px; }
 
-        /* 動畫 */
+        /* === 動畫特效 === */
         .fade-in-up { animation: fadeInUp 0.3s ease-out forwards; }
-        @keyframes fadeInUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
 
-        /* 錄音按鈕 */
+        /* === 錄音按鈕狀態 === */
         .btn-mic-hold {
             transform: scale(1.1);
             background-color: #2563eb !important;
@@ -38,13 +41,32 @@
             transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
         }
         
-        #btn-ptt { touch-action: none; -webkit-touch-callout: none; }
+        #btn-ptt {
+            touch-action: none;
+            -webkit-touch-callout: none;
+        }
 
-        /* 會議模式按鈕 */
-        .meeting-active-src { background-color: #eff6ff !important; border-color: #2563eb !important; color: #1e40af !important; }
-        .meeting-active-src::after { content: ''; position: absolute; top: 10px; right: 10px; width: 8px; height: 8px; background: #2563eb; border-radius: 50%; animation: pulse-dot 1s infinite; }
-        .meeting-active-tgt { background-color: #fefce8 !important; border-color: #ca8a04 !important; color: #854d0e !important; }
-        .meeting-active-tgt::after { content: ''; position: absolute; top: 10px; right: 10px; width: 8px; height: 8px; background: #ca8a04; border-radius: 50%; animation: pulse-dot 1s infinite; }
+        /* === 會議模式按鈕狀態 === */
+        .meeting-active-src {
+            background-color: #eff6ff !important;
+            border-color: #2563eb !important;
+            color: #1e40af !important;
+            position: relative;
+        }
+        .meeting-active-src::after {
+            content: ''; position: absolute; top: 10px; right: 10px; width: 8px; height: 8px; background: #2563eb; border-radius: 50%; animation: pulse-dot 1s infinite;
+        }
+
+        .meeting-active-tgt {
+            background-color: #fefce8 !important;
+            border-color: #ca8a04 !important;
+            color: #854d0e !important;
+            position: relative;
+        }
+        .meeting-active-tgt::after {
+            content: ''; position: absolute; top: 10px; right: 10px; width: 8px; height: 8px; background: #ca8a04; border-radius: 50%; animation: pulse-dot 1s infinite;
+        }
+
         @keyframes pulse-dot { 0% {opacity: 1;} 50% {opacity: 0.3;} 100% {opacity: 1;} }
 
         .tab-btn { opacity: 0.6; transition: all 0.2s; border-bottom: 3px solid transparent; }
@@ -52,14 +74,39 @@
 
         #swapBtn i { transition: transform 0.3s ease; }
         
-        .speak-btn { opacity: 0.5; transition: all 0.2s; padding: 6px; border-radius: 50%; cursor: pointer; color: #475569; }
-        .speak-btn:hover, .speak-btn:active { opacity: 1; background-color: rgba(0,0,0,0.05); color: #2563eb; }
+        .speak-btn {
+            opacity: 0.5;
+            transition: all 0.2s;
+            padding: 6px;
+            border-radius: 50%;
+            cursor: pointer;
+            color: #475569;
+        }
+        .speak-btn:hover, .speak-btn:active {
+            opacity: 1;
+            background-color: rgba(0,0,0,0.05);
+            color: #2563eb;
+        }
 
-        [contenteditable]:focus { outline: none; background-color: #fff; border-bottom: 1px dashed #94a3b8; }
+        [contenteditable]:focus {
+            outline: none;
+            background-color: #fff; 
+            border-bottom: 1px dashed #94a3b8;
+        }
+        [contenteditable]:hover {
+            background-color: #fff; 
+            cursor: text;
+        }
 
-        /* OCR / Drag Overlay */
-        #ocr-overlay, #drag-overlay { backdrop-filter: blur(8px); }
-        .drag-box { border: 4px dashed #60a5fa; background-color: rgba(239, 246, 255, 0.9); }
+        /* OCR Overlay */
+        #ocr-overlay, #drag-overlay {
+            backdrop-filter: blur(5px);
+        }
+        
+        .drag-box {
+            border: 4px dashed #60a5fa;
+            background-color: rgba(239, 246, 255, 0.8);
+        }
     </style>
 </head>
 <body class="h-[100dvh] flex flex-col overflow-hidden text-slate-800 bg-[#f8fafc]">
@@ -68,9 +115,10 @@
     <div class="bg-white shadow-sm z-20 shrink-0">
         <div class="flex justify-between items-center px-4 py-3 border-b border-slate-100">
             <div class="flex items-center gap-2 text-blue-600 font-bold text-lg">
-                <i class="fa-solid fa-layer-group"></i>
-                <span>ProTranslate <span class="text-[10px] bg-blue-50 text-blue-600 px-1.5 rounded ml-1 align-top">v25 Fix</span></span>
+                <i class="fa-solid fa-bullhorn"></i>
+                <span>ProTranslate <span class="text-[10px] bg-blue-50 text-blue-600 px-1.5 rounded ml-1 align-top">v26 Voice</span></span>
             </div>
+            <!-- 語言切換區 -->
             <div class="flex items-center bg-slate-100 rounded-lg p-1 gap-1 text-sm">
                 <select id="sourceLang" class="bg-transparent font-bold text-slate-700 outline-none px-2 py-1 cursor-pointer w-24">
                     <option value="zh-TW" data-code="zh-TW">中文 (TW)</option>
@@ -92,7 +140,7 @@
 
         <div class="flex bg-white text-sm border-b border-slate-200">
             <button onclick="switchMode('chat')" id="tab-chat" class="tab-btn active flex-1 py-3 text-center">
-                <i class="fa-regular fa-comments mr-1"></i> 對話 / OCR
+                <i class="fa-regular fa-comments mr-1"></i> 對話與打字
             </button>
             <button onclick="switchMode('meeting')" id="tab-meeting" class="tab-btn flex-1 py-3 text-center">
                 <i class="fa-solid fa-microphone-lines mr-1"></i> 會議模式
@@ -105,11 +153,10 @@
         
         <div id="welcome-msg" class="flex flex-col items-center justify-center h-full text-slate-400 text-center opacity-60">
             <div class="relative mb-4">
-                <i class="fa-solid fa-image text-5xl"></i>
-                <i class="fa-solid fa-paste absolute -bottom-2 -right-2 text-2xl bg-white p-1 rounded-full text-blue-500"></i>
+                <i class="fa-solid fa-headphones text-5xl"></i>
             </div>
-            <p class="text-sm font-medium">支援拖曳、貼上、拍照</p>
-            <p class="text-xs mt-2">全能辨識引擎 Ready</p>
+            <p class="text-sm font-medium">自然語音引擎已優化</p>
+            <p class="text-xs mt-2">支援 Google 真人發音 (Google TTS)</p>
         </div>
 
         <div id="message-stream" class="flex flex-col gap-4 pb-4"></div>
@@ -126,23 +173,22 @@
         </div>
     </div>
 
-    <!-- Drag Overlay (Fix: pointer-events-none to children) -->
-    <div id="drag-overlay" class="hidden fixed inset-0 z-[100] bg-slate-50/90 flex items-center justify-center p-8 transition-opacity duration-200">
-        <div class="drag-box w-full h-full rounded-3xl flex flex-col items-center justify-center text-blue-500 pointer-events-none">
-            <i class="fa-solid fa-cloud-arrow-up text-8xl mb-6 animate-bounce"></i>
+    <!-- Drag Overlay -->
+    <div id="drag-overlay" class="hidden fixed inset-0 z-[100] bg-slate-50/90 flex items-center justify-center p-8">
+        <div class="drag-box w-full h-full rounded-3xl flex flex-col items-center justify-center text-blue-500 animate-pulse">
+            <i class="fa-solid fa-cloud-arrow-up text-8xl mb-6"></i>
             <h2 class="text-3xl font-bold">放開以辨識圖片</h2>
-            <p class="text-slate-500 mt-2">支援 JPG, PNG, BMP</p>
         </div>
     </div>
 
     <!-- OCR Loading Overlay -->
-    <div id="ocr-overlay" class="hidden fixed inset-0 bg-slate-900/80 z-50 flex flex-col items-center justify-center text-white p-4 text-center">
+    <div id="ocr-overlay" class="hidden fixed inset-0 bg-slate-900/70 z-50 flex flex-col items-center justify-center text-white">
         <div class="animate-spin rounded-full h-12 w-12 border-4 border-blue-500 border-t-transparent mb-4"></div>
-        <h3 class="text-lg font-bold">影像智慧辨識中...</h3>
+        <h3 class="text-lg font-bold">正在辨識圖片...</h3>
+        <p class="text-xs text-slate-300 mt-2" id="ocr-status">初始化引擎中...</p>
         <div class="w-64 bg-slate-700 rounded-full h-2.5 mt-4 overflow-hidden">
             <div id="ocr-progress-bar" class="bg-blue-500 h-2.5 rounded-full transition-all duration-300" style="width: 0%"></div>
         </div>
-        <p class="text-xs text-slate-300 mt-2 font-mono" id="ocr-status">初始化引擎...</p>
     </div>
 
     <!-- 3. 底部控制區 -->
@@ -188,7 +234,7 @@
             </button>
         </div>
         <div class="text-center mt-2">
-            <p class="text-[10px] text-slate-400">雙語會議模式：自動連續翻譯</p>
+            <p class="text-[10px] text-slate-400">雙語會議模式：智慧斷句</p>
         </div>
     </div>
 
@@ -238,15 +284,156 @@
         };
 
         // ======================
-        // 1. 語音引擎 (Universal Pulse Mode)
+        // 1. 語音播放引擎 (Universal Voice Optimizer)
+        // ======================
+        
+        function speakText(text, lang) {
+            window.speechSynthesis.cancel();
+            if (window.currentAudio) {
+                window.currentAudio.pause();
+                window.currentAudio = null;
+            }
+
+            // Google TTS 語言代碼映射
+            let gLang = 'en';
+            if (lang.includes('zh') || lang.includes('TW')) gLang = 'zh-TW';
+            else if (lang.includes('vi')) gLang = 'vi';
+
+            // 本地 TTS 語言代碼映射
+            let nLang = (gLang === 'vi') ? 'vi-VN' : gLang;
+
+            // --- 優先嘗試: Google 雲端 TTS ---
+            const url = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(text)}&tl=${gLang}&client=tw-ob`;
+            const audio = new Audio(url);
+            window.currentAudio = audio;
+            
+            // 加入錯誤處理，如果 Google 載入失敗，自動切換
+            audio.onerror = () => {
+                console.warn("Google TTS Audio load error, using native.");
+                fallbackToNativeTTS(text, nLang);
+            };
+
+            const playPromise = audio.play();
+            
+            if (playPromise !== undefined) {
+                playPromise.catch(error => {
+                    console.warn("Google TTS blocked/failed, fallback to native:", error);
+                    fallbackToNativeTTS(text, nLang);
+                });
+            }
+        }
+
+        function fallbackToNativeTTS(text, langCode) {
+            const u = new SpeechSynthesisUtterance(text);
+            u.lang = langCode;
+            u.rate = 0.9; 
+
+            // 強制搜尋正確的語音包 (針對 Windows 越南文問題)
+            // Windows 有時即使 lang 設為 vi-VN，如果沒有該包，會用英文念
+            // 這裡我們強制找出名字裡有 'Viet' 或 'VN' 的聲音
+            const voices = window.speechSynthesis.getVoices();
+            let targetVoice = null;
+
+            if (langCode.includes('vi')) {
+                targetVoice = voices.find(v => v.lang.includes('vi') || v.name.includes('Viet') || v.name.includes('An') || v.name.includes('Linh'));
+            } else if (langCode.includes('zh')) {
+                targetVoice = voices.find(v => v.lang.includes('zh-TW') || v.name.includes('Taiwan') || v.name.includes('Han'));
+            }
+
+            if (targetVoice) {
+                u.voice = targetVoice;
+                console.log("Using forced voice:", targetVoice.name);
+            } else {
+                console.warn("No specific voice found for", langCode, "using default.");
+            }
+
+            window.speechSynthesis.speak(u);
+        }
+
+        // 預先加載語音列表 (Chrome 需要)
+        window.speechSynthesis.getVoices();
+        if (window.speechSynthesis.onvoiceschanged !== undefined) {
+            window.speechSynthesis.onvoiceschanged = window.speechSynthesis.getVoices;
+        }
+
+
+        // ======================
+        // 2. OCR & Image Handling
+        // ======================
+        
+        function triggerCamera() { UI.inputs.camera.click(); }
+
+        async function processImageFile(file) {
+            if (!file) return;
+            UI.ocrOverlay.classList.remove('hidden');
+            UI.ocrBar.style.width = '0%';
+            UI.ocrStatus.innerText = "準備辨識引擎...";
+
+            const langMap = { 'zh-TW': 'chi_tra', 'vi-VN': 'vie', 'en-US': 'eng' };
+            const sourceCode = UI.inputs.source.value;
+            const tesseractLang = langMap[sourceCode] || 'eng';
+
+            try {
+                const { data: { text } } = await Tesseract.recognize(
+                    file, tesseractLang,
+                    { logger: m => { 
+                        if(m.status === 'recognizing text') {
+                            UI.ocrStatus.innerText = `智慧辨識中... ${Math.round(m.progress * 100)}%`;
+                            UI.ocrBar.style.width = `${Math.round(m.progress * 100)}%`;
+                        } else {
+                            UI.ocrStatus.innerText = m.status;
+                        }
+                    }}
+                );
+
+                UI.ocrOverlay.classList.add('hidden');
+                const cleanText = text.replace(/\s+/g, ' ').trim();
+                if (cleanText.length > 0) {
+                    processText(cleanText);
+                    showToast("辨識成功");
+                } else {
+                    showToast("未偵測到文字");
+                }
+            } catch (error) {
+                UI.ocrOverlay.classList.add('hidden');
+                showToast("辨識失敗");
+            }
+        }
+
+        function handleImageUpload(input) {
+            if (input.files && input.files[0]) { processImageFile(input.files[0]); input.value = ''; }
+        }
+
+        document.addEventListener('paste', (e) => {
+            const items = (e.clipboardData || e.originalEvent.clipboardData).items;
+            for (let item of items) {
+                if (item.type.startsWith('image/')) {
+                    e.preventDefault();
+                    processImageFile(item.getAsFile());
+                    return;
+                }
+            }
+        });
+
+        let dragCounter = 0;
+        document.body.addEventListener('dragenter', (e) => { e.preventDefault(); dragCounter++; UI.dragOverlay.classList.remove('hidden'); });
+        document.body.addEventListener('dragleave', (e) => { e.preventDefault(); dragCounter--; if (dragCounter === 0) UI.dragOverlay.classList.add('hidden'); });
+        document.body.addEventListener('dragover', (e) => { e.preventDefault(); });
+        document.body.addEventListener('drop', (e) => {
+            e.preventDefault(); dragCounter = 0; UI.dragOverlay.classList.add('hidden');
+            if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+                if (e.dataTransfer.files[0].type.startsWith('image/')) processImageFile(e.dataTransfer.files[0]);
+                else showToast("請拖曳圖片");
+            }
+        });
+
+        // ======================
+        // 3. 語音辨識引擎 (Universal Pulse Mode)
         // ======================
         
         function initRecognition(trackOrMode) {
             if (App.recognition) {
-                try { 
-                    App.recognition.onend = null; 
-                    App.recognition.abort(); 
-                } catch(e){}
+                try { App.recognition.onend = null; App.recognition.abort(); } catch(e){}
                 App.recognition = null;
             }
 
@@ -257,8 +444,6 @@
             }
 
             const rec = new SpeechRecognition();
-            // Universal Pulse Mode: continuous=false + 手動循環
-            // 這是對所有裝置相容性最高的做法
             rec.continuous = false; 
             rec.interimResults = true;
             rec.maxAlternatives = 1;
@@ -289,27 +474,21 @@
             rec.onresult = (event) => {
                 if (App.mode === 'meeting') {
                     clearTimeout(App.silenceTimer);
-                    App.silenceTimer = setTimeout(() => {
-                         try { rec.stop(); } catch(e){} 
-                    }, App.SILENCE_MS);
+                    App.silenceTimer = setTimeout(() => { try { rec.stop(); } catch(e){} }, App.SILENCE_MS);
                 }
 
                 let interim = '';
                 let final = '';
 
                 for (let i = event.resultIndex; i < event.results.length; ++i) {
-                    if (event.results[i].isFinal) {
-                        final += event.results[i][0].transcript;
-                    } else {
-                        interim += event.results[i][0].transcript;
-                    }
+                    if (event.results[i].isFinal) final += event.results[i][0].transcript;
+                    else interim += event.results[i][0].transcript;
                 }
 
                 if (interim.length > 0) {
                     App.tempTranscript = interim; 
                     UI.preview.text.textContent = interim;
                 }
-
                 if (final.trim()) {
                     processText(final);
                     App.tempTranscript = ''; 
@@ -333,9 +512,7 @@
                             const newRec = initRecognition(App.meetingTrack);
                             if(newRec) {
                                 App.isStarting = true;
-                                try { newRec.start(); } catch(e){ 
-                                    App.isStarting = false;
-                                }
+                                try { newRec.start(); } catch(e){ App.isStarting = false; }
                             }
                         }
                     }, 200);
@@ -358,7 +535,7 @@
         }
 
         // ======================
-        // 2. 翻譯 & TTS 邏輯 (AI Routing)
+        // 4. 翻譯邏輯
         // ======================
 
         async function processText(text) {
@@ -386,164 +563,48 @@
             const msgId = addBubble(text, '翻譯中...', '驗證中...', align, sLang, tLang);
             
             try {
-                // 1. Translate
                 const trans = await fetchTranslate(text, sLang, tLang);
                 updateBubbleTrans(msgId, trans, true, tLang);
 
-                // 2. Back Translate (AI Verify)
                 if (trans && trans !== "API 錯誤") {
-                    const backTrans = await fetchTranslate(trans, tLang, sLang);
-                    updateBubbleVerify(msgId, backTrans);
+                    const back = await fetchTranslate(trans, tLang, sLang);
+                    updateBubbleVerify(msgId, back);
                 } else {
                     updateBubbleVerify(msgId, "無法驗證");
                 }
-
             } catch (e) {
                 updateBubbleTrans(msgId, "翻譯失敗", false);
                 updateBubbleVerify(msgId, "---");
             }
         }
 
-        // Hybrid Translate Engine (Google First -> MyMemory)
         async function fetchTranslate(text, s, t) {
             const controller = new AbortController();
             setTimeout(() => controller.abort(), 8000);
 
-            // 1. Google GTX
             try {
                 let gs = s.includes('vi') ? 'vi' : s.replace('zh-TW', 'zh-TW');
                 let gt = t.includes('vi') ? 'vi' : t.replace('zh-TW', 'zh-TW');
-                
                 const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${gs}&tl=${gt}&dt=t&q=${encodeURIComponent(text)}`;
                 const res = await fetch(url, { signal: controller.signal });
                 if (!res.ok) throw new Error("G-Err");
                 const data = await res.json();
                 if (data && data[0]) return data[0].map(x => x[0]).join('');
-            } catch (e) { console.log("Google Failed", e); }
-
-            // 2. MyMemory Fallback
-            try {
-                const ms = s.includes('vi') ? 'vi-VN' : s; 
-                const mt = t.includes('vi') ? 'vi-VN' : t;
-                const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=${ms}|${mt}`;
-                const res = await fetch(url);
-                const data = await res.json();
-                return (data.responseStatus === 200) ? data.responseData.translatedText : "API 忙碌";
+                throw new Error("No Data");
             } catch (e) {
-                return "網路連線錯誤";
+                try {
+                    const ms = s.includes('vi') ? 'vi-VN' : s; 
+                    const mt = t.includes('vi') ? 'vi-VN' : t;
+                    const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=${ms}|${mt}`;
+                    const res = await fetch(url);
+                    const data = await res.json();
+                    return (data.responseStatus === 200) ? data.responseData.translatedText : "API 忙碌";
+                } catch (e) { return "網路連線錯誤"; }
             }
         }
-
-        // Smart TTS
-        function speakText(text, lang) {
-            window.speechSynthesis.cancel();
-            if (window.currentAudio) { window.currentAudio.pause(); window.currentAudio = null; }
-
-            let gLang = 'en';
-            if (lang.includes('zh') || lang.includes('TW')) gLang = 'zh-TW';
-            else if (lang.includes('vi')) gLang = 'vi';
-            let nLang = (gLang === 'vi') ? 'vi-VN' : gLang;
-
-            // Try Google Audio first
-            const url = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(text)}&tl=${gLang}&client=tw-ob`;
-            const audio = new Audio(url);
-            window.currentAudio = audio;
-            
-            const playPromise = audio.play();
-            if (playPromise !== undefined) {
-                playPromise.catch(error => {
-                    // Fallback to Native
-                    const u = new SpeechSynthesisUtterance(text);
-                    u.lang = nLang;
-                    u.rate = 0.9; 
-                    
-                    // Force voice finding (for Windows Vietnamese issue)
-                    const voices = window.speechSynthesis.getVoices();
-                    if (lang.includes('vi')) {
-                        const v = voices.find(v => v.lang.includes('vi') || v.name.includes('Viet'));
-                        if(v) u.voice = v;
-                    }
-                    
-                    window.speechSynthesis.speak(u);
-                });
-            }
-        }
-        window.speechSynthesis.getVoices(); // Preload
 
         // ======================
-        // 3. OCR & Drag Drop (Fixes)
-        // ======================
-        
-        function triggerCamera() { UI.inputs.camera.click(); }
-
-        async function processImageFile(file) {
-            if (!file) return;
-            UI.ocrOverlay.classList.remove('hidden');
-            UI.ocrBar.style.width = '0%';
-            UI.ocrStatus.innerText = "準備辨識引擎...";
-
-            const langMap = { 'zh-TW': 'chi_tra', 'vi-VN': 'vie', 'en-US': 'eng' };
-            const sourceCode = UI.inputs.source.value;
-            const tesseractLang = langMap[sourceCode] || 'eng';
-
-            try {
-                const { data: { text } } = await Tesseract.recognize(
-                    file, tesseractLang,
-                    { logger: m => { 
-                        if(m.status === 'recognizing text') {
-                            UI.ocrStatus.innerText = `辨識中... ${Math.round(m.progress * 100)}%`;
-                            UI.ocrBar.style.width = `${Math.round(m.progress * 100)}%`;
-                        } else {
-                            UI.ocrStatus.innerText = m.status;
-                        }
-                    }}
-                );
-
-                UI.ocrOverlay.classList.add('hidden');
-                const cleanText = text.replace(/\s+/g, ' ').trim();
-                if (cleanText.length > 0) {
-                    processText(cleanText);
-                    showToast("辨識成功");
-                } else {
-                    showToast("未偵測到文字");
-                }
-            } catch (error) {
-                UI.ocrOverlay.classList.add('hidden');
-                showToast("辨識失敗");
-            }
-        }
-
-        function handleImageUpload(input) {
-            if (input.files && input.files[0]) { processImageFile(input.files[0]); input.value = ''; }
-        }
-
-        // Paste
-        document.addEventListener('paste', (e) => {
-            const items = (e.clipboardData || e.originalEvent.clipboardData).items;
-            for (let item of items) {
-                if (item.type.startsWith('image/')) {
-                    e.preventDefault();
-                    processImageFile(item.getAsFile());
-                    return;
-                }
-            }
-        });
-
-        // Drag & Drop (Flicker Fix)
-        let dragCounter = 0;
-        document.body.addEventListener('dragenter', (e) => { e.preventDefault(); dragCounter++; UI.dragOverlay.classList.remove('hidden'); });
-        document.body.addEventListener('dragleave', (e) => { e.preventDefault(); dragCounter--; if (dragCounter === 0) UI.dragOverlay.classList.add('hidden'); });
-        document.body.addEventListener('dragover', (e) => { e.preventDefault(); });
-        document.body.addEventListener('drop', (e) => {
-            e.preventDefault(); dragCounter = 0; UI.dragOverlay.classList.add('hidden');
-            if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-                if (e.dataTransfer.files[0].type.startsWith('image/')) processImageFile(e.dataTransfer.files[0]);
-                else showToast("請拖曳圖片");
-            }
-        });
-
-        // ======================
-        // 4. 編輯與重譯
+        // 5. 編輯與重譯
         // ======================
 
         function handleEditKey(e, id, sLang, tLang) {
@@ -559,12 +620,12 @@
             const newText = origEl.innerText.trim();
             if (!newText) return; 
 
-            // Update UI
             const speakBtn = document.getElementById('btn-speak-orig-' + id);
             if (speakBtn) {
                 const escNewText = newText.replace(/'/g, "\\'").replace(/"/g, '&quot;');
                 speakBtn.setAttribute('onclick', `speakText('${escNewText}', '${sLang}')`);
             }
+
             const el = document.getElementById(id);
             el.querySelector('.trans-text').innerHTML = '<i class="fa-solid fa-spinner fa-spin text-xs"></i> ...';
             el.querySelector('.verify-text').innerText = '...';
@@ -582,7 +643,7 @@
         }
 
         // ======================
-        // 5. 控制邏輯
+        // 6. 控制邏輯
         // ======================
 
         function stopEverything() {
@@ -646,7 +707,7 @@
         }
 
         // ======================
-        // 6. UI 輔助
+        // 7. UI 輔助
         // ======================
         function addBubble(orig, trans, verify, align, sLang, tLang) {
             UI.welcome.classList.add('hidden');
