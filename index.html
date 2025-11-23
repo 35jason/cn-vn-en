@@ -3,10 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>ProTranslate v41 - 照片功能修復版</title>
+    <title>ProTranslate v44 - 會議邏輯修復版</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- 使用更穩定的 jsdelivr CDN -->
-    <script src='https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js'></script>
+    <script src='https://unpkg.com/tesseract.js@v5/dist/tesseract.min.js'></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Roboto:wght@400;500&display=swap" rel="stylesheet">
 
@@ -20,7 +19,6 @@
             -webkit-user-select: none;
         }
 
-        /* 允許選取的文字類別 */
         .selectable-text {
             user-select: text !important;
             -webkit-user-select: text !important;
@@ -44,6 +42,7 @@
         
         #btn-ptt { touch-action: none; -webkit-touch-callout: none; }
 
+        /* 會議模式按鈕樣式 */
         .meeting-active-src { background-color: #eff6ff !important; border-color: #2563eb !important; color: #1e40af !important; position: relative; }
         .meeting-active-src::after { content: ''; position: absolute; top: 10px; right: 10px; width: 8px; height: 8px; background: #2563eb; border-radius: 50%; animation: pulse-dot 1s infinite; }
         
@@ -72,8 +71,8 @@
     <div class="bg-white shadow-sm z-20 shrink-0">
         <div class="flex justify-between items-center px-4 py-3 border-b border-slate-100">
             <div class="flex items-center gap-2 text-blue-600 font-bold text-lg">
-                <i class="fa-solid fa-camera-rotate"></i>
-                <span>ProTranslate <span class="text-[10px] bg-blue-50 text-blue-600 px-1.5 rounded ml-1 align-top">v41 Fix</span></span>
+                <i class="fa-solid fa-screwdriver-wrench"></i>
+                <span>ProTranslate <span class="text-[10px] bg-blue-50 text-blue-600 px-1.5 rounded ml-1 align-top">v44 Fix</span></span>
             </div>
             <div class="flex items-center bg-slate-100 rounded-lg p-1 gap-1 text-sm">
                 <select id="sourceLang" class="bg-transparent font-bold text-slate-700 outline-none px-2 py-1 cursor-pointer w-24">
@@ -84,10 +83,11 @@
                 <button id="swapBtn" class="w-8 h-8 flex items-center justify-center rounded-full text-slate-400 hover:text-blue-600 hover:bg-white hover:shadow-sm transition-all">
                     <i class="fa-solid fa-arrow-right-arrow-left text-xs"></i>
                 </button>
+                <!-- [FIX]: Explicitly added data-code to all options to guarantee correct recognition lang -->
                 <select id="targetLang" class="bg-transparent font-bold text-blue-600 outline-none px-2 py-1 cursor-pointer w-24">
-                    <option value="vi-VN">越文 (VN)</option>
-                    <option value="en-US">英文 (US)</option>
-                    <option value="zh-TW">中文 (TW)</option>
+                    <option value="vi-VN" data-code="vi-VN">越文 (VN)</option>
+                    <option value="en-US" data-code="en-US">英文 (US)</option>
+                    <option value="zh-TW" data-code="zh-TW">中文 (TW)</option>
                 </select>
             </div>
         </div>
@@ -98,13 +98,13 @@
     </div>
 
     <!-- Main Content -->
-    <div id="main-container" class="flex-1 overflow-y-auto custom-scroll p-4 space-y-4 bg-[#f8fafc] pb-32 relative">
+    <div id="main-container" class="flex-1 overflow-y-auto custom-scroll p-4 space-y-4 bg-[#f8fafc] pb-32 relative" onclick="closeKeyboard()">
         <div id="welcome-msg" class="flex flex-col items-center justify-center h-full text-slate-400 text-center opacity-60">
             <div class="relative mb-4">
-                <i class="fa-solid fa-camera text-5xl"></i>
+                <i class="fa-solid fa-rotate text-5xl"></i>
             </div>
-            <p class="text-sm font-medium">照片辨識功能已修復</p>
-            <p class="text-xs mt-2">Tesseract.js v5 Core Loaded</p>
+            <p class="text-sm font-medium">會議模式邏輯已優化</p>
+            <p class="text-xs mt-2">Language Switching Fixed</p>
         </div>
         <div id="message-stream" class="flex flex-col gap-4 pb-4"></div>
         <div id="speech-preview" class="hidden sticky bottom-2 mx-auto bg-slate-800/90 backdrop-blur text-white px-5 py-3 rounded-full shadow-lg text-sm max-w-[90%] text-center z-10 border border-slate-600/50">
@@ -137,22 +137,19 @@
     <!-- Bottom Controls -->
     <div id="ctrl-chat" class="bg-white border-t border-slate-200 p-3 pb-6 flex flex-col gap-2 z-30 shadow-[0_-4px_20px_rgba(0,0,0,0.05)] transition-transform duration-300">
         <div class="flex items-end gap-2">
-            <!-- JS Binding for Camera -->
             <button id="btn-camera" class="shrink-0 w-12 h-12 rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-blue-600 active:scale-95 transition-all flex items-center justify-center relative"><i class="fa-solid fa-camera text-xl"></i></button>
             <input type="file" id="cameraInput" accept="image/*" class="hidden">
-            
             <button id="btn-ptt" class="shrink-0 w-12 h-12 rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 active:scale-95 transition-all flex items-center justify-center relative"><i class="fa-solid fa-microphone text-xl"></i></button>
-            
             <div class="flex-1 relative">
                  <textarea id="chat-input" rows="1" class="w-full bg-slate-50 border border-slate-300 rounded-2xl px-4 py-3 text-base outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 resize-none custom-scroll max-h-24 selectable-text" placeholder="輸入文字..."></textarea>
                  <div id="char-counter" class="absolute bottom-1 right-3 text-[9px] text-slate-400">0/3000</div>
             </div>
-           
             <button id="btn-send" class="shrink-0 w-12 h-12 rounded-full bg-blue-600 text-white hover:bg-blue-700 active:scale-95 transition-all shadow-md flex items-center justify-center"><i class="fa-solid fa-paper-plane text-sm"></i></button>
         </div>
         <p class="text-center text-[10px] text-slate-400">按住說話 / 貼上圖片 / 點擊拍照</p>
     </div>
     
+    <!-- Meeting Controls -->
     <div id="ctrl-meeting" class="hidden bg-white border-t border-slate-200 p-4 pb-8 z-30 shadow-[0_-4px_20px_rgba(0,0,0,0.05)]">
         <div class="flex justify-center gap-4">
             <button id="btn-meeting-src" class="flex-1 h-16 rounded-2xl border-2 border-slate-200 bg-slate-50 text-slate-600 flex flex-col items-center justify-center gap-1 hover:bg-slate-100 active:scale-95 transition-all">
@@ -162,7 +159,7 @@
                 <div class="flex items-center gap-2"><span class="text-lg">🟡</span><span class="font-bold text-sm" id="label-tgt">講越文</span></div>
             </button>
         </div>
-        <div class="text-center mt-2"><p class="text-[10px] text-slate-400">雙語會議模式：智慧斷句</p></div>
+        <div class="text-center mt-2"><p class="text-[10px] text-slate-400">雙語會議模式：點擊切換</p></div>
     </div>
 
     <div id="toast" class="fixed top-6 left-1/2 -translate-x-1/2 bg-slate-800/90 backdrop-blur text-white px-4 py-2 rounded-full shadow-lg text-sm hidden z-50 transition-opacity flex items-center gap-2">
@@ -170,6 +167,7 @@
     </div>
 
     <script>
+        // === STATE MANAGEMENT ===
         const App = { mode: 'chat', recognition: null, isRecording: false, isStarting: false, meetingTrack: null, tempTranscript: '', silenceTimer: null, SILENCE_MS: 1500, isTouch: false };
         const UI = {
             tabs: { chat: document.getElementById('tab-chat'), meeting: document.getElementById('tab-meeting') },
@@ -182,90 +180,169 @@
             charCount: document.getElementById('char-counter')
         };
 
-        // === OCR LOGIC (FIXED V41) ===
-        function triggerCamera() {
-            UI.inputs.camera.click();
+        // === SPEECH RECOGNITION (Strict Lang Check) ===
+        function initRecognition(trackOrMode) {
+            // Always kill previous instance
+            if (App.recognition) { try { App.recognition.onend = null; App.recognition.abort(); } catch(e){} App.recognition = null; }
+            
+            const SpeechRecognition = window.webkitSpeechRecognition || window.SpeechRecognition;
+            if (!SpeechRecognition) { showToast("瀏覽器不支援語音"); return null; }
+            
+            const rec = new SpeechRecognition();
+            rec.continuous = false; // Pulse Mode for stability
+            rec.interimResults = true; 
+            rec.maxAlternatives = 1;
+
+            // [FIX]: Robust Language Selection Logic
+            const getLangCode = (isSource) => {
+                const el = isSource ? UI.inputs.source : UI.inputs.target;
+                const opt = el.options[el.selectedIndex];
+                // Prioritize data-code, fallback to value
+                return opt.getAttribute('data-code') || opt.value || 'zh-TW';
+            };
+
+            let langCode = 'zh-TW';
+            if (App.mode === 'chat') {
+                langCode = getLangCode(true);
+            } else {
+                // Meeting Mode Logic
+                if (trackOrMode === 'src') langCode = getLangCode(true);
+                else if (trackOrMode === 'tgt') langCode = getLangCode(false);
+            }
+
+            rec.lang = langCode;
+            console.log(`[Speech] Starting rec with lang: ${langCode}`);
+
+            rec.onstart = () => {
+                App.isRecording = true; 
+                App.isStarting = false;
+                App.tempTranscript = ''; 
+                UI.preview.box.classList.remove('hidden'); 
+                UI.preview.text.textContent = "聆聽中..."; 
+                if (App.mode === 'chat') UI.btns.ptt.classList.add('btn-mic-hold');
+                
+                // Visual Feedback for Language
+                let langName = langCode.includes('vi') ? '越文' : (langCode.includes('zh') ? '中文' : '英文');
+                showToast(`正在聆聽: ${langName}`);
+            };
+
+            rec.onresult = (event) => {
+                if (App.mode === 'meeting') { 
+                    clearTimeout(App.silenceTimer); 
+                    App.silenceTimer = setTimeout(() => { try { rec.stop(); } catch(e){} }, App.SILENCE_MS); 
+                }
+                let interim = '', final = '';
+                for (let i = event.resultIndex; i < event.results.length; ++i) { 
+                    if (event.results[i].isFinal) final += event.results[i][0].transcript; 
+                    else interim += event.results[i][0].transcript; 
+                }
+                if (interim.length > 0) { App.tempTranscript = interim; UI.preview.text.textContent = interim; }
+                if (final.trim()) { processText(final); App.tempTranscript = ''; UI.preview.text.textContent = ""; }
+            };
+
+            rec.onend = () => {
+                App.isRecording = false; 
+                UI.preview.box.classList.add('hidden'); 
+                UI.btns.ptt.classList.remove('btn-mic-hold');
+                if (App.tempTranscript.trim()) { processText(App.tempTranscript); App.tempTranscript = ''; }
+                
+                // Meeting Mode Loop (Watchdog)
+                if (App.mode === 'meeting' && App.meetingTrack !== null) { 
+                    setTimeout(() => { 
+                        // Only restart if track hasn't changed to null (stopped)
+                        if (App.meetingTrack !== null && !App.isRecording && !App.isStarting) { 
+                            const newRec = initRecognition(App.meetingTrack); 
+                            if(newRec) { 
+                                App.isStarting = true; 
+                                try { newRec.start(); } catch(e){ App.isStarting = false; } 
+                            } 
+                        } 
+                    }, 200); 
+                } else if (App.mode === 'meeting') { 
+                    resetMeetingUI(); 
+                }
+            };
+            
+            rec.onerror = (e) => { 
+                console.log("Speech Error", e.error); 
+                App.isStarting = false; 
+                if (e.error === 'not-allowed') { showToast("請允許麥克風權限"); stopEverything(); } 
+            };
+            
+            App.recognition = rec; 
+            return rec;
         }
 
-        async function processImageFile(file) {
-            if (!file) return;
-            
-            if (typeof Tesseract === 'undefined') {
-                showToast("OCR 引擎載入失敗，請檢查網路");
+        // === MEETING CONTROL LOGIC (FIXED) ===
+        function toggleMeeting(track) {
+            if (App.isStarting) {
+                console.log("Busy starting...");
                 return;
             }
 
-            UI.ocrOverlay.classList.remove('hidden');
-            UI.ocrBar.style.width = '0%';
-            UI.ocrStatus.innerText = "準備辨識引擎...";
+            // 1. If clicking same track -> Stop
+            if (App.meetingTrack === track) {
+                stopEverything();
+                return;
+            }
 
-            const langMap = { 'zh-TW': 'chi_tra', 'vi-VN': 'vie', 'en-US': 'eng' };
-            const sourceCode = UI.inputs.source.value;
-            const tesseractLang = langMap[sourceCode] || 'eng';
+            // 2. If clicking different track -> Switch
+            // First, stop everything cleanly
+            stopEverything();
+            
+            // Set new track
+            App.meetingTrack = track;
+            
+            // Update UI immediately
+            if (track === 'src') UI.btns.mSrc.classList.add('meeting-active-src');
+            else UI.btns.mTgt.classList.add('meeting-active-tgt');
 
-            try {
-                const { data: { text } } = await Tesseract.recognize(
-                    file, 
-                    tesseractLang,
-                    { 
-                        logger: m => { 
-                            if(m.status === 'recognizing text') {
-                                UI.ocrStatus.innerText = `辨識中... ${Math.round(m.progress * 100)}%`;
-                                UI.ocrBar.style.width = `${Math.round(m.progress * 100)}%`;
-                            } else {
-                                UI.ocrStatus.innerText = m.status;
-                            }
-                        } 
-                    }
-                );
-
-                UI.ocrOverlay.classList.add('hidden');
-                const cleanText = text.replace(/\s+/g, ' ').trim();
-                if (cleanText.length > 0) {
-                    processText(cleanText);
-                    showToast("辨識成功");
-                } else {
-                    showToast("未偵測到文字");
+            // 3. Start new recognition with delay to allow browser to release mic
+            App.isStarting = true;
+            setTimeout(() => {
+                if (App.meetingTrack === null) { App.isStarting = false; return; } // User stopped during delay
+                const rec = initRecognition(track);
+                try { 
+                    rec.start(); 
+                } catch(e) {
+                    console.error("Meeting start failed", e);
+                    showToast("請重試");
+                    stopEverything();
                 }
-            } catch (error) {
-                console.error(error);
-                UI.ocrOverlay.classList.add('hidden');
-                showToast("辨識失敗，請重試");
-            }
+            }, 300); // Increased buffer to 300ms for safety
         }
 
-        function handleImageUpload(e) {
-            const input = e.target;
-            if (input.files && input.files[0]) { 
-                processImageFile(input.files[0]); 
-                input.value = ''; 
+        function stopEverything() {
+            App.isStarting = false;
+            if (App.recognition) {
+                App.recognition.onend = null; // Kill loop
+                try { App.recognition.abort(); } catch(e){}
+                App.recognition = null;
             }
+            App.isRecording = false;
+            App.meetingTrack = null;
+            resetMeetingUI();
+            UI.preview.box.classList.add('hidden');
+            UI.btns.ptt.classList.remove('btn-mic-hold');
         }
 
-        // === TTS MANAGER ===
+        // === REST OF LOGIC (Same as v40/41) ===
         let audioQueue = [];
         let isPlayingQueue = false;
-
         function playNextInQueue() {
             if (audioQueue.length === 0) { isPlayingQueue = false; return; }
-            isPlayingQueue = true;
-            const url = audioQueue.shift();
-            const audio = new Audio(url);
-            window.currentAudio = audio;
+            isPlayingQueue = true; const url = audioQueue.shift(); const audio = new Audio(url); window.currentAudio = audio;
             audio.onended = () => playNextInQueue();
-            audio.onerror = (e) => { console.warn("Audio chunk error", e); playNextInQueue(); };
-            audio.play().catch(e => { console.warn("Queue blocked", e); isPlayingQueue = false; });
+            audio.onerror = (e) => playNextInQueue();
+            audio.play().catch(e => isPlayingQueue = false);
         }
-
         function splitTextSafe(text, maxLength) {
-            const chunks = [];
-            let buffer = "";
+            const chunks = []; let buffer = "";
             const parts = text.match(/[^,.?!\n。？！；]+[,.?!\n。？！；]*/g) || [text];
             for (let part of parts) {
                 if (part.length > maxLength) {
                     if (buffer) { chunks.push(buffer); buffer = ""; }
-                    let start = 0;
-                    while (start < part.length) { chunks.push(part.substr(start, maxLength)); start += maxLength; }
+                    let start = 0; while (start < part.length) { chunks.push(part.substr(start, maxLength)); start += maxLength; }
                 } else {
                     if ((buffer + part).length > maxLength) { if (buffer) chunks.push(buffer); buffer = part; } else { buffer += part; }
                 }
@@ -273,17 +350,13 @@
             if (buffer) chunks.push(buffer);
             return chunks;
         }
-
         function speakText(text, lang) {
-            window.speechSynthesis.cancel();
-            if (window.currentAudio) { window.currentAudio.pause(); window.currentAudio = null; }
+            window.speechSynthesis.cancel(); if (window.currentAudio) { window.currentAudio.pause(); window.currentAudio = null; }
             audioQueue = []; isPlayingQueue = false;
             const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
             let gLang = 'en'; if (lang.includes('zh') || lang.includes('TW')) gLang = 'zh-TW'; else if (lang.includes('vi')) gLang = 'vi';
             let nLang = (gLang === 'vi') ? 'vi-VN' : gLang;
-
             if (isIOS) { fallbackToNativeTTS(text, nLang); return; }
-
             const TTS_CHUNK_SIZE = 90; 
             if (text.length > TTS_CHUNK_SIZE) {
                 const chunks = splitTextSafe(text, TTS_CHUNK_SIZE);
@@ -295,10 +368,8 @@
                 audio.play().catch(e => fallbackToNativeTTS(text, nLang));
             }
         }
-
         function fallbackToNativeTTS(text, langCode) {
-            const u = new SpeechSynthesisUtterance(text);
-            u.lang = langCode; u.rate = 0.9; 
+            const u = new SpeechSynthesisUtterance(text); u.lang = langCode; u.rate = 0.9; 
             const voices = window.speechSynthesis.getVoices();
             let targetVoice = null;
             if (langCode.includes('vi')) targetVoice = voices.find(v => v.lang.includes('vi') || v.name.includes('Viet') || v.name.includes('Tiếng Việt'));
@@ -308,10 +379,9 @@
         }
         window.speechSynthesis.getVoices();
 
-        // === TRANSLATION ===
         async function processText(text) {
             if (!text || text.trim().length === 0) return;
-            if (text.length > 3000) { showToast("字數超過 3000，自動截斷"); text = text.substring(0, 3000); }
+            if (text.length > 3000) { showToast("字數超過 3000 限制"); text = text.substring(0, 3000); }
             let sLang, tLang, align;
             const getVal = (isSource) => isSource ? UI.inputs.source.value : UI.inputs.target.value;
             if (App.mode === 'chat') { sLang = getVal(true); tLang = getVal(false); align = 'right'; }
@@ -330,7 +400,6 @@
                 } else { updateBubbleVerify(msgId, "..."); }
             } catch (e) { updateBubbleTrans(msgId, "翻譯失敗", false); updateBubbleVerify(msgId, "---"); }
         }
-
         async function fetchTranslate(text, s, t) {
             const controller = new AbortController(); setTimeout(() => controller.abort(), 8000);
             try {
@@ -347,8 +416,6 @@
                 return (data.responseStatus === 200) ? data.responseData.translatedText : "API 忙碌";
             } catch (e) { return "網路錯誤"; }
         }
-
-        // === UI BUBBLES ===
         function addBubble(orig, trans, verify, align, sLang, tLang) {
             UI.welcome.classList.add('hidden');
             const id = 'msg-' + Date.now() + Math.random().toString(36).substr(2);
@@ -364,12 +431,7 @@
         function handleEditKey(e, id, sLang, tLang) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); document.getElementById('orig-' + id).blur(); } }
         async function reTranslate(id, sLang, tLang) { const origEl = document.getElementById('orig-' + id); if (!origEl) return; const newText = origEl.innerText.trim(); if (!newText) return; const speakBtn = document.getElementById('btn-speak-orig-' + id); if (speakBtn) { const escNewText = newText.replace(/'/g, "\\'").replace(/"/g, '&quot;'); speakBtn.setAttribute('onclick', `speakText('${escNewText}', '${sLang}')`); } const el = document.getElementById(id); el.querySelector('.trans-text').innerHTML = '<i class="fa-solid fa-spinner fa-spin text-xs"></i> ...'; el.querySelector('.verify-text').innerText = '...'; const transBtn = document.getElementById(`btn-tts-${id}`); if (transBtn) transBtn.classList.add('hidden'); try { const trans = await fetchTranslate(newText, sLang, tLang); updateBubbleTrans(id, trans, true, tLang); if (trans && trans !== "API 錯誤") { const back = await fetchTranslate(trans, tLang, sLang); updateBubbleVerify(id, back); } } catch (e) { updateBubbleTrans(id, "Err", false); } }
         
-        // === RECOGNITION & EVENTS ===
-        function stopEverything() { App.isStarting = false; if (App.recognition) { App.recognition.onend = null; try { App.recognition.abort(); } catch(e){} App.recognition = null; } App.isRecording = false; App.meetingTrack = null; resetMeetingUI(); UI.preview.box.classList.add('hidden'); UI.btns.ptt.classList.remove('btn-mic-hold'); }
-        function startPTT(e) { if (e.type === 'touchstart') { App.isTouch = true; e.preventDefault(); } else if (e.type === 'mousedown' && App.isTouch) return; if (App.mode !== 'chat') return; startListening('chat'); }
-        function stopPTT(e) { if (e.type === 'touchend') e.preventDefault(); if (App.mode !== 'chat') return; if (App.recognition) App.recognition.stop(); }
-        function startListening(trackOrMode) { if (App.isStarting) return; App.isStarting = true; const rec = initRecognition(trackOrMode); try { rec.start(); } catch(e) { App.isStarting = false; } }
-        function toggleMeeting(track) { if (App.meetingTrack === track) { stopEverything(); return; } stopEverything(); App.meetingTrack = track; if (track === 'src') UI.btns.mSrc.classList.add('meeting-active-src'); else UI.btns.mTgt.classList.add('meeting-active-tgt'); setTimeout(() => startListening(track), 200); }
+        // Events & Bindings
         function switchMode(mode) { stopEverything(); App.mode = mode; if (mode === 'chat') { UI.tabs.chat.classList.add('active'); UI.tabs.meeting.classList.remove('active'); UI.ctrls.chat.classList.remove('hidden'); UI.ctrls.meeting.classList.add('hidden'); } else { UI.tabs.meeting.classList.add('active'); UI.tabs.chat.classList.remove('active'); UI.ctrls.meeting.classList.remove('hidden'); UI.ctrls.chat.classList.add('hidden'); updateLabels(); } }
         function resetMeetingUI() { UI.btns.mSrc.classList.remove('meeting-active-src'); UI.btns.mTgt.classList.remove('meeting-active-tgt'); }
         function updateLabels() { const s = UI.inputs.source; const t = UI.inputs.target; const sT = s.options[s.selectedIndex].text.split(' ')[0]; const tT = t.options[t.selectedIndex].text.split(' ')[0]; document.getElementById('label-src').innerText = `講${sT}`; document.getElementById('label-tgt').innerText = `講${tT}`; }
@@ -377,63 +439,37 @@
         function swapLanguages() { stopEverything(); const temp = UI.inputs.source.value; UI.inputs.source.value = UI.inputs.target.value; UI.inputs.target.value = temp; updateLabels(); const i = document.querySelector('#swapBtn i'); i.style.transform = 'rotate(180deg)'; setTimeout(()=>i.style.transform='rotate(0deg)', 300); }
         function handleTextSend() { const val = UI.inputs.text.value.trim(); if(!val) return; UI.inputs.text.value = ''; UI.inputs.text.style.height = 'auto'; processText(val); }
         function closeKeyboard() { if (document.activeElement === UI.inputs.text) UI.inputs.text.blur(); }
+        function startPTT(e) { if (e.type === 'touchstart') { App.isTouch = true; e.preventDefault(); } else if (e.type === 'mousedown' && App.isTouch) return; if (App.mode !== 'chat') return; startListening('chat'); }
+        function stopPTT(e) { if (e.type === 'touchend') e.preventDefault(); if (App.mode !== 'chat') return; if (App.recognition) App.recognition.stop(); }
+        function startListening(trackOrMode) { if (App.isStarting) return; App.isStarting = true; const rec = initRecognition(trackOrMode); try { rec.start(); } catch(e) { App.isStarting = false; } }
         
-        // Helper for Recognition Init
-        function initRecognition(trackOrMode) {
-            if (App.recognition) { try { App.recognition.onend = null; App.recognition.abort(); } catch(e){} App.recognition = null; }
-            const SpeechRecognition = window.webkitSpeechRecognition || window.SpeechRecognition;
-            if (!SpeechRecognition) { showToast("瀏覽器不支援語音"); return null; }
-            const rec = new SpeechRecognition();
-            rec.continuous = false; rec.interimResults = true; rec.maxAlternatives = 1;
-            let langCode = 'zh-TW'; 
-            const getLang = (isSource) => { const el = isSource ? UI.inputs.source : UI.inputs.target; return el.options[el.selectedIndex].getAttribute('data-code'); };
-            if (App.mode === 'chat') langCode = getLang(true); else { if (trackOrMode === 'src') langCode = getLang(true); else if (trackOrMode === 'tgt') langCode = getLang(false); }
-            rec.lang = langCode;
-            rec.onstart = () => { App.isRecording = true; App.isStarting = false; App.tempTranscript = ''; UI.preview.box.classList.remove('hidden'); UI.preview.text.textContent = "聆聽中..."; if (App.mode === 'chat') UI.btns.ptt.classList.add('btn-mic-hold'); };
-            rec.onresult = (event) => {
-                if (App.mode === 'meeting') { clearTimeout(App.silenceTimer); App.silenceTimer = setTimeout(() => { try { rec.stop(); } catch(e){} }, App.SILENCE_MS); }
-                let interim = '', final = '';
-                for (let i = event.resultIndex; i < event.results.length; ++i) { if (event.results[i].isFinal) final += event.results[i][0].transcript; else interim += event.results[i][0].transcript; }
-                if (interim.length > 0) { App.tempTranscript = interim; UI.preview.text.textContent = interim; }
-                if (final.trim()) { processText(final); App.tempTranscript = ''; UI.preview.text.textContent = ""; }
-            };
-            rec.onend = () => {
-                App.isRecording = false; UI.preview.box.classList.add('hidden'); UI.btns.ptt.classList.remove('btn-mic-hold');
-                if (App.tempTranscript.trim()) { processText(App.tempTranscript); App.tempTranscript = ''; }
-                if (App.mode === 'meeting' && App.meetingTrack !== null) { setTimeout(() => { if (App.meetingTrack !== null && !App.isRecording && !App.isStarting) { const newRec = initRecognition(App.meetingTrack); if(newRec) { App.isStarting = true; try { newRec.start(); } catch(e){ App.isStarting = false; } } } }, 200); } else if (App.mode === 'meeting') { resetMeetingUI(); }
-            };
-            rec.onerror = (e) => { console.log("Speech Error", e.error); App.isStarting = false; if (e.error === 'not-allowed') { showToast("請允許麥克風權限"); stopEverything(); } };
-            App.recognition = rec; return rec;
+        function triggerCamera() { UI.inputs.camera.click(); }
+        async function processImageFile(file) {
+            if (!file) return; UI.ocrOverlay.classList.remove('hidden'); UI.ocrBar.style.width = '0%'; UI.ocrStatus.innerText = "準備辨識引擎...";
+            const langMap = { 'zh-TW': 'chi_tra', 'vi-VN': 'vie', 'en-US': 'eng' }; const sourceCode = UI.inputs.source.value; const tesseractLang = langMap[sourceCode] || 'eng';
+            try { const { data: { text } } = await Tesseract.recognize(file, tesseractLang, { logger: m => { if(m.status === 'recognizing text') { UI.ocrStatus.innerText = `辨識中... ${Math.round(m.progress * 100)}%`; UI.ocrBar.style.width = `${Math.round(m.progress * 100)}%`; } else { UI.ocrStatus.innerText = m.status; } } }); UI.ocrOverlay.classList.add('hidden'); const cleanText = text.replace(/\s+/g, ' ').trim(); if (cleanText.length > 0) { processText(cleanText); showToast("辨識成功"); } else { showToast("未偵測到文字"); } } catch (error) { UI.ocrOverlay.classList.add('hidden'); showToast("辨識失敗"); }
         }
+        function handleImageUpload(input) { if (input.files && input.files[0]) { processImageFile(input.files[0]); input.value = ''; } }
 
-        // Listeners
+        // Bindings
         UI.inputs.source.addEventListener('change', updateLabels); UI.inputs.target.addEventListener('change', updateLabels);
         UI.inputs.text.addEventListener('keydown', e => { if(e.key==='Enter' && !e.shiftKey) { e.preventDefault(); handleTextSend(); }});
-        UI.inputs.text.addEventListener('input', function(){ 
-            this.style.height='auto'; this.style.height=this.scrollHeight+'px'; 
-            const count = this.value.length;
-            UI.charCount.innerText = `${count}/3000`;
-            if(count > 3000) UI.charCount.classList.add('text-red-500'); else UI.charCount.classList.remove('text-red-500');
-        });
-        UI.inputs.camera.addEventListener('change', handleImageUpload);
+        UI.inputs.text.addEventListener('input', function(){ this.style.height='auto'; this.style.height=this.scrollHeight+'px'; const count = this.value.length; UI.charCount.innerText = `${count}/3000`; if(count > 3000) UI.charCount.classList.add('text-red-500'); else UI.charCount.classList.remove('text-red-500'); });
+        UI.inputs.camera.addEventListener('change', (e) => handleImageUpload(e.target));
         
-        // Drag & Drop
         document.addEventListener('paste', (e) => { const items = (e.clipboardData || e.originalEvent.clipboardData).items; for (let item of items) { if (item.type.startsWith('image/')) { e.preventDefault(); processImageFile(item.getAsFile()); return; } } });
-        let dragCounter = 0; 
-        document.body.addEventListener('dragenter', (e) => { e.preventDefault(); dragCounter++; UI.dragOverlay.classList.remove('hidden'); }); 
-        document.body.addEventListener('dragleave', (e) => { e.preventDefault(); dragCounter--; if (dragCounter === 0) UI.dragOverlay.classList.add('hidden'); }); 
-        document.body.addEventListener('dragover', (e) => { e.preventDefault(); });
-        document.body.addEventListener('drop', (e) => { e.preventDefault(); dragCounter = 0; UI.dragOverlay.classList.add('hidden'); if (e.dataTransfer.files && e.dataTransfer.files[0]) { if (e.dataTransfer.files[0].type.startsWith('image/')) processImageFile(e.dataTransfer.files[0]); else showToast("請拖曳圖片"); } });
+        let dragCounter = 0; document.body.addEventListener('dragenter', (e) => { e.preventDefault(); dragCounter++; UI.dragOverlay.classList.remove('hidden'); }); document.body.addEventListener('dragleave', (e) => { e.preventDefault(); dragCounter--; if (dragCounter === 0) UI.dragOverlay.classList.add('hidden'); }); document.body.addEventListener('dragover', (e) => { e.preventDefault(); }); document.body.addEventListener('drop', (e) => { e.preventDefault(); dragCounter = 0; UI.dragOverlay.classList.add('hidden'); if (e.dataTransfer.files && e.dataTransfer.files[0]) { if (e.dataTransfer.files[0].type.startsWith('image/')) processImageFile(e.dataTransfer.files[0]); else showToast("請拖曳圖片"); } });
 
-        // Button bindings (using JS addEventListener)
+        // Event Listeners for Buttons
         UI.btns.cam.addEventListener('click', triggerCamera);
         UI.btns.send.addEventListener('click', handleTextSend);
         UI.btns.swap.addEventListener('click', swapLanguages);
         UI.btns.ptt.addEventListener('mousedown', startPTT); UI.btns.ptt.addEventListener('touchstart', startPTT, {passive:false}); UI.btns.ptt.addEventListener('mouseup', stopPTT); UI.btns.ptt.addEventListener('touchend', stopPTT, {passive:false}); UI.btns.ptt.addEventListener('mouseleave', stopPTT);
-        UI.btns.mSrc.addEventListener('click', () => toggleMeeting('src')); UI.btns.mTgt.addEventListener('click', () => toggleMeeting('tgt'));
-        UI.tabs.chat.addEventListener('click', () => switchMode('chat')); UI.tabs.meeting.addEventListener('click', () => switchMode('meeting'));
+        UI.btns.mSrc.addEventListener('click', () => toggleMeeting('src')); 
+        UI.btns.mTgt.addEventListener('click', () => toggleMeeting('tgt'));
+        UI.tabs.chat.addEventListener('click', () => switchMode('chat')); 
+        UI.tabs.meeting.addEventListener('click', () => switchMode('meeting'));
 
-        // Init
         updateLabels();
     </script>
 </body>
