@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>ProTranslate v44 - 會議邏輯修復版</title>
+    <title>ProTranslate v44 Fix - 修正版</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src='https://unpkg.com/tesseract.js@v5/dist/tesseract.min.js'></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -67,7 +67,6 @@
 </head>
 <body class="h-[100dvh] flex flex-col overflow-hidden text-slate-800 bg-[#f8fafc]">
 
-    <!-- Top Nav -->
     <div class="bg-white shadow-sm z-20 shrink-0">
         <div class="flex justify-between items-center px-4 py-3 border-b border-slate-100">
             <div class="flex items-center gap-2 text-blue-600 font-bold text-lg">
@@ -83,7 +82,6 @@
                 <button id="swapBtn" class="w-8 h-8 flex items-center justify-center rounded-full text-slate-400 hover:text-blue-600 hover:bg-white hover:shadow-sm transition-all">
                     <i class="fa-solid fa-arrow-right-arrow-left text-xs"></i>
                 </button>
-                <!-- [FIX]: Explicitly added data-code to all options to guarantee correct recognition lang -->
                 <select id="targetLang" class="bg-transparent font-bold text-blue-600 outline-none px-2 py-1 cursor-pointer w-24">
                     <option value="vi-VN" data-code="vi-VN">越文 (VN)</option>
                     <option value="en-US" data-code="en-US">英文 (US)</option>
@@ -97,14 +95,13 @@
         </div>
     </div>
 
-    <!-- Main Content -->
     <div id="main-container" class="flex-1 overflow-y-auto custom-scroll p-4 space-y-4 bg-[#f8fafc] pb-32 relative" onclick="closeKeyboard()">
         <div id="welcome-msg" class="flex flex-col items-center justify-center h-full text-slate-400 text-center opacity-60">
             <div class="relative mb-4">
                 <i class="fa-solid fa-rotate text-5xl"></i>
             </div>
-            <p class="text-sm font-medium">會議模式邏輯已優化</p>
-            <p class="text-xs mt-2">Language Switching Fixed</p>
+            <p class="text-sm font-medium">翻譯核心修復完成</p>
+            <p class="text-xs mt-2">API Logic Corrected</p>
         </div>
         <div id="message-stream" class="flex flex-col gap-4 pb-4"></div>
         <div id="speech-preview" class="hidden sticky bottom-2 mx-auto bg-slate-800/90 backdrop-blur text-white px-5 py-3 rounded-full shadow-lg text-sm max-w-[90%] text-center z-10 border border-slate-600/50">
@@ -118,7 +115,6 @@
         </div>
     </div>
 
-    <!-- Overlays -->
     <div id="drag-overlay" class="hidden fixed inset-0 z-[100] bg-slate-50/90 flex items-center justify-center p-8">
         <div class="drag-box w-full h-full rounded-3xl flex flex-col items-center justify-center text-blue-500 animate-pulse">
             <i class="fa-solid fa-cloud-arrow-up text-8xl mb-6"></i>
@@ -134,7 +130,6 @@
         <p class="text-xs text-slate-300 mt-2 font-mono" id="ocr-status">初始化引擎...</p>
     </div>
 
-    <!-- Bottom Controls -->
     <div id="ctrl-chat" class="bg-white border-t border-slate-200 p-3 pb-6 flex flex-col gap-2 z-30 shadow-[0_-4px_20px_rgba(0,0,0,0.05)] transition-transform duration-300">
         <div class="flex items-end gap-2">
             <button id="btn-camera" class="shrink-0 w-12 h-12 rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-blue-600 active:scale-95 transition-all flex items-center justify-center relative"><i class="fa-solid fa-camera text-xl"></i></button>
@@ -149,7 +144,6 @@
         <p class="text-center text-[10px] text-slate-400">按住說話 / 貼上圖片 / 點擊拍照</p>
     </div>
     
-    <!-- Meeting Controls -->
     <div id="ctrl-meeting" class="hidden bg-white border-t border-slate-200 p-4 pb-8 z-30 shadow-[0_-4px_20px_rgba(0,0,0,0.05)]">
         <div class="flex justify-center gap-4">
             <button id="btn-meeting-src" class="flex-1 h-16 rounded-2xl border-2 border-slate-200 bg-slate-50 text-slate-600 flex flex-col items-center justify-center gap-1 hover:bg-slate-100 active:scale-95 transition-all">
@@ -180,24 +174,21 @@
             charCount: document.getElementById('char-counter')
         };
 
-        // === SPEECH RECOGNITION (Strict Lang Check) ===
+        // === SPEECH RECOGNITION ===
         function initRecognition(trackOrMode) {
-            // Always kill previous instance
             if (App.recognition) { try { App.recognition.onend = null; App.recognition.abort(); } catch(e){} App.recognition = null; }
             
             const SpeechRecognition = window.webkitSpeechRecognition || window.SpeechRecognition;
             if (!SpeechRecognition) { showToast("瀏覽器不支援語音"); return null; }
             
             const rec = new SpeechRecognition();
-            rec.continuous = false; // Pulse Mode for stability
+            rec.continuous = false;
             rec.interimResults = true; 
             rec.maxAlternatives = 1;
 
-            // [FIX]: Robust Language Selection Logic
             const getLangCode = (isSource) => {
                 const el = isSource ? UI.inputs.source : UI.inputs.target;
                 const opt = el.options[el.selectedIndex];
-                // Prioritize data-code, fallback to value
                 return opt.getAttribute('data-code') || opt.value || 'zh-TW';
             };
 
@@ -205,7 +196,6 @@
             if (App.mode === 'chat') {
                 langCode = getLangCode(true);
             } else {
-                // Meeting Mode Logic
                 if (trackOrMode === 'src') langCode = getLangCode(true);
                 else if (trackOrMode === 'tgt') langCode = getLangCode(false);
             }
@@ -221,7 +211,6 @@
                 UI.preview.text.textContent = "聆聽中..."; 
                 if (App.mode === 'chat') UI.btns.ptt.classList.add('btn-mic-hold');
                 
-                // Visual Feedback for Language
                 let langName = langCode.includes('vi') ? '越文' : (langCode.includes('zh') ? '中文' : '英文');
                 showToast(`正在聆聽: ${langName}`);
             };
@@ -246,10 +235,8 @@
                 UI.btns.ptt.classList.remove('btn-mic-hold');
                 if (App.tempTranscript.trim()) { processText(App.tempTranscript); App.tempTranscript = ''; }
                 
-                // Meeting Mode Loop (Watchdog)
                 if (App.mode === 'meeting' && App.meetingTrack !== null) { 
                     setTimeout(() => { 
-                        // Only restart if track hasn't changed to null (stopped)
                         if (App.meetingTrack !== null && !App.isRecording && !App.isStarting) { 
                             const newRec = initRecognition(App.meetingTrack); 
                             if(newRec) { 
@@ -273,49 +260,26 @@
             return rec;
         }
 
-        // === MEETING CONTROL LOGIC (FIXED) ===
+        // === MEETING CONTROL LOGIC ===
         function toggleMeeting(track) {
-            if (App.isStarting) {
-                console.log("Busy starting...");
-                return;
-            }
-
-            // 1. If clicking same track -> Stop
-            if (App.meetingTrack === track) {
-                stopEverything();
-                return;
-            }
-
-            // 2. If clicking different track -> Switch
-            // First, stop everything cleanly
+            if (App.isStarting) return;
+            if (App.meetingTrack === track) { stopEverything(); return; }
             stopEverything();
-            
-            // Set new track
             App.meetingTrack = track;
-            
-            // Update UI immediately
             if (track === 'src') UI.btns.mSrc.classList.add('meeting-active-src');
             else UI.btns.mTgt.classList.add('meeting-active-tgt');
-
-            // 3. Start new recognition with delay to allow browser to release mic
             App.isStarting = true;
             setTimeout(() => {
-                if (App.meetingTrack === null) { App.isStarting = false; return; } // User stopped during delay
+                if (App.meetingTrack === null) { App.isStarting = false; return; }
                 const rec = initRecognition(track);
-                try { 
-                    rec.start(); 
-                } catch(e) {
-                    console.error("Meeting start failed", e);
-                    showToast("請重試");
-                    stopEverything();
-                }
-            }, 300); // Increased buffer to 300ms for safety
+                try { rec.start(); } catch(e) { console.error(e); stopEverything(); }
+            }, 300);
         }
 
         function stopEverything() {
             App.isStarting = false;
             if (App.recognition) {
-                App.recognition.onend = null; // Kill loop
+                App.recognition.onend = null;
                 try { App.recognition.abort(); } catch(e){}
                 App.recognition = null;
             }
@@ -326,7 +290,7 @@
             UI.btns.ptt.classList.remove('btn-mic-hold');
         }
 
-        // === REST OF LOGIC (Same as v40/41) ===
+        // === AUDIO & TTS ===
         let audioQueue = [];
         let isPlayingQueue = false;
         function playNextInQueue() {
@@ -386,85 +350,96 @@
             const getVal = (isSource) => isSource ? UI.inputs.source.value : UI.inputs.target.value;
             if (App.mode === 'chat') { sLang = getVal(true); tLang = getVal(false); align = 'right'; }
             else { if (App.meetingTrack === 'src') { sLang = getVal(true); tLang = getVal(false); align = 'right'; } else { sLang = getVal(false); tLang = getVal(true); align = 'left'; } }
+            
             const msgId = addBubble(text, '翻譯中...', '驗證中...', align, sLang, tLang);
             try {
                 const transChunks = splitTextSafe(text, 1000);
                 let fullTrans = "";
                 for (const chunk of transChunks) { const res = await fetchTranslate(chunk, sLang, tLang); fullTrans += res + " "; }
-                updateBubbleTrans(msgId, fullTrans.trim(), true, tLang); 
-                if (fullTrans && !fullTrans.includes("錯誤")) {
+                
+                // 檢查是否回傳了錯誤訊息
+                if (fullTrans.includes("錯誤") || fullTrans.includes("Error") || fullTrans.includes("失敗")) {
+                    updateBubbleTrans(msgId, fullTrans.trim(), false);
+                    updateBubbleVerify(msgId, "無法驗證");
+                } else {
+                    updateBubbleTrans(msgId, fullTrans.trim(), true, tLang); 
                     const verifyChunks = splitTextSafe(fullTrans, 1000);
                     let fullVerify = "";
                     for (const chunk of verifyChunks) { const res = await fetchTranslate(chunk, tLang, sLang); fullVerify += res + " "; }
                     updateBubbleVerify(msgId, fullVerify.trim());
-                } else { updateBubbleVerify(msgId, "..."); }
-            } catch (e) { updateBubbleTrans(msgId, "翻譯失敗", false); updateBubbleVerify(msgId, "---"); }
-        }
-// === 修改後的 Gemini 翻譯函式 ===
-// === 修改後的 Gemini 翻譯函式 (已修復邏輯) ===
-// === 修改後的 Gemini 翻譯函式 (已修正) ===
-async function fetchTranslate(text, s, t) {
-    // ✅ 你的 Gemini API Key (已填入)
-    const API_KEY = "AIzaSyC08IGznw7IlTN3CXGblddj8lchmz1YMJA"; 
-
-    // ❌ 之前這裡的 if 判斷式造成了問題，請直接刪除它，不要留著。
-
-    // 簡單檢查 Key 是否存在即可
-    if (!API_KEY) {
-        alert("API Key 未設定");
-        return "API Key 未設定";
-    }
-
-    // 將語言代碼轉換為 Gemini 看得懂的自然語言
-    const langMap = {
-        'zh-TW': 'Traditional Chinese (Taiwan)',
-        'vi-VN': 'Vietnamese',
-        'en-US': 'English',
-        'zh': 'Traditional Chinese',
-        'vi': 'Vietnamese',
-        'en': 'English'
-    };
-
-    const sourceLang = langMap[s] || s;
-    const targetLang = langMap[t] || t;
-
-    const prompt = `You are a professional translator. Translate the following text from ${sourceLang} to ${targetLang}. 
-    Output ONLY the translated text without any explanations, quotes, or notes.
-    
-    Text to translate:
-    ${text}`;
-
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`;
-
-    try {
-        const response = await fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                contents: [{ parts: [{ text: prompt }] }],
-                generationConfig: { temperature: 0.1 }
-            })
-        });
-
-        if (!response.ok) {
-            const errData = await response.json();
-            console.error("Gemini API Error Detail:", errData); // 這裡會在 Console 顯示詳細錯誤
-            throw new Error(`HTTP error! status: ${response.status}`);
+                }
+            } catch (e) { 
+                updateBubbleTrans(msgId, "系統異常", false); 
+                updateBubbleVerify(msgId, "---"); 
+            }
         }
 
-        const data = await response.json();
-        
-        if (data.candidates && data.candidates[0].content && data.candidates[0].content.parts) {
-            return data.candidates[0].content.parts[0].text.trim();
-        } else {
-            return "翻譯失敗 (無回傳)";
+        // === 修正後的翻譯核心 (Clean Fix) ===
+        async function fetchTranslate(text, s, t) {
+            const API_KEY = "AIzaSyC08IGznw7IlTN3CXGblddj8lchmz1YMJA"; // 請確認此 Key 是否有效
+
+            if (!API_KEY) return "API Key 未設定";
+
+            const langMap = {
+                'zh-TW': 'Traditional Chinese (Taiwan)',
+                'vi-VN': 'Vietnamese',
+                'en-US': 'English',
+                'zh': 'Traditional Chinese',
+                'vi': 'Vietnamese',
+                'en': 'English'
+            };
+
+            const sourceLang = langMap[s] || s;
+            const targetLang = langMap[t] || t;
+
+            const prompt = `You are a professional translator. Translate the following text from ${sourceLang} to ${targetLang}. 
+            Output ONLY the translated text without any explanations, quotes, or notes.
+            
+            Text to translate:
+            ${text}`;
+
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`;
+
+            try {
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        contents: [{ parts: [{ text: prompt }] }],
+                        generationConfig: { temperature: 0.1 }
+                    })
+                });
+
+                if (!response.ok) {
+                    const errData = await response.json();
+                    console.error("Gemini API Error:", errData);
+                    const errMsg = errData.error ? errData.error.message : response.statusText;
+                    // 在瀏覽器上直接顯示錯誤，方便除錯
+                    if (errMsg.includes('API key not valid')) {
+                        alert(`API Key 無效：請檢查程式碼中的 API_KEY。\n錯誤: ${errMsg}`);
+                        return "API Key 錯誤";
+                    } else {
+                        alert(`翻譯服務錯誤 (${response.status})：\n${errMsg}`);
+                        return `API 錯誤: ${response.status}`;
+                    }
+                }
+
+                const data = await response.json();
+                
+                if (data.candidates && data.candidates[0].content && data.candidates[0].content.parts) {
+                    return data.candidates[0].content.parts[0].text.trim();
+                } else if (data.candidates && data.candidates[0].finishReason) {
+                    return `翻譯中斷: ${data.candidates[0].finishReason}`; // 例如 SAFETY
+                } else {
+                    return "翻譯失敗 (無回傳內容)";
+                }
+
+            } catch (e) {
+                console.error("Fetch Error:", e);
+                return "連線錯誤 (請檢查網路)";
+            }
         }
 
-    } catch (e) {
-        console.error("Gemini API Error:", e);
-        return "連線錯誤"; // 如果看到這個，請按 F12 看 Console 的詳細錯誤
-    }
-}
         function addBubble(orig, trans, verify, align, sLang, tLang) {
             UI.welcome.classList.add('hidden');
             const id = 'msg-' + Date.now() + Math.random().toString(36).substr(2);
@@ -478,7 +453,7 @@ async function fetchTranslate(text, s, t) {
         function updateBubbleTrans(id, text, success, tLang) { const el = document.getElementById(id); if(!el) return; const p = el.querySelector('.trans-text'); p.innerHTML = text; p.className = success ? 'trans-text text-lg font-bold text-blue-700 flex-1 selectable-text' : 'trans-text text-base text-red-500 flex-1 selectable-text'; if (success) { const btn = document.getElementById(`btn-tts-${id}`); const escText = text.replace(/'/g, "\\'").replace(/"/g, '&quot;').replace(/\n/g, ' '); btn.setAttribute('onclick', `speakText('${escText}', '${tLang}')`); btn.classList.remove('hidden'); } }
         function updateBubbleVerify(id, text) { const el = document.getElementById(id); if(el) el.querySelector('.verify-text').innerText = text; }
         function handleEditKey(e, id, sLang, tLang) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); document.getElementById('orig-' + id).blur(); } }
-        async function reTranslate(id, sLang, tLang) { const origEl = document.getElementById('orig-' + id); if (!origEl) return; const newText = origEl.innerText.trim(); if (!newText) return; const speakBtn = document.getElementById('btn-speak-orig-' + id); if (speakBtn) { const escNewText = newText.replace(/'/g, "\\'").replace(/"/g, '&quot;'); speakBtn.setAttribute('onclick', `speakText('${escNewText}', '${sLang}')`); } const el = document.getElementById(id); el.querySelector('.trans-text').innerHTML = '<i class="fa-solid fa-spinner fa-spin text-xs"></i> ...'; el.querySelector('.verify-text').innerText = '...'; const transBtn = document.getElementById(`btn-tts-${id}`); if (transBtn) transBtn.classList.add('hidden'); try { const trans = await fetchTranslate(newText, sLang, tLang); updateBubbleTrans(id, trans, true, tLang); if (trans && trans !== "API 錯誤") { const back = await fetchTranslate(trans, tLang, sLang); updateBubbleVerify(id, back); } } catch (e) { updateBubbleTrans(id, "Err", false); } }
+        async function reTranslate(id, sLang, tLang) { const origEl = document.getElementById('orig-' + id); if (!origEl) return; const newText = origEl.innerText.trim(); if (!newText) return; const speakBtn = document.getElementById('btn-speak-orig-' + id); if (speakBtn) { const escNewText = newText.replace(/'/g, "\\'").replace(/"/g, '&quot;'); speakBtn.setAttribute('onclick', `speakText('${escNewText}', '${sLang}')`); } const el = document.getElementById(id); el.querySelector('.trans-text').innerHTML = '<i class="fa-solid fa-spinner fa-spin text-xs"></i> ...'; el.querySelector('.verify-text').innerText = '...'; const transBtn = document.getElementById(`btn-tts-${id}`); if (transBtn) transBtn.classList.add('hidden'); try { const trans = await fetchTranslate(newText, sLang, tLang); updateBubbleTrans(id, trans, true, tLang); if (trans && !trans.includes("錯誤")) { const back = await fetchTranslate(trans, tLang, sLang); updateBubbleVerify(id, back); } } catch (e) { updateBubbleTrans(id, "Err", false); } }
         
         // Events & Bindings
         function switchMode(mode) { stopEverything(); App.mode = mode; if (mode === 'chat') { UI.tabs.chat.classList.add('active'); UI.tabs.meeting.classList.remove('active'); UI.ctrls.chat.classList.remove('hidden'); UI.ctrls.meeting.classList.add('hidden'); } else { UI.tabs.meeting.classList.add('active'); UI.tabs.chat.classList.remove('active'); UI.ctrls.meeting.classList.remove('hidden'); UI.ctrls.chat.classList.add('hidden'); updateLabels(); } }
@@ -523,7 +498,3 @@ async function fetchTranslate(text, s, t) {
     </script>
 </body>
 </html>
-
-
-
-
