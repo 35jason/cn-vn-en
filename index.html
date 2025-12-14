@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>ProTranslate v50 - 每日額度偵測版</title>
+    <title>ProTranslate v44 - 會議邏輯修復版</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src='https://unpkg.com/tesseract.js@v5/dist/tesseract.min.js'></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -29,19 +29,20 @@
         .custom-scroll::-webkit-scrollbar-track { background: transparent; }
         .custom-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 2px; }
 
-        .fade-in-up { animation: fadeInUp 0.2s ease-out forwards; }
-        @keyframes fadeInUp { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+        .fade-in-up { animation: fadeInUp 0.3s ease-out forwards; }
+        @keyframes fadeInUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 
         .btn-mic-hold {
             transform: scale(1.1);
             background-color: #2563eb !important;
             box-shadow: 0 0 0 15px rgba(37, 99, 235, 0.2);
             color: white !important;
-            transition: all 0.1s cubic-bezier(0.4, 0, 0.2, 1);
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
         }
         
         #btn-ptt { touch-action: none; -webkit-touch-callout: none; }
 
+        /* 會議模式按鈕樣式 */
         .meeting-active-src { background-color: #eff6ff !important; border-color: #2563eb !important; color: #1e40af !important; position: relative; }
         .meeting-active-src::after { content: ''; position: absolute; top: 10px; right: 10px; width: 8px; height: 8px; background: #2563eb; border-radius: 50%; animation: pulse-dot 1s infinite; }
         
@@ -53,38 +54,25 @@
         .tab-btn { opacity: 0.6; transition: all 0.2s; border-bottom: 3px solid transparent; }
         .tab-btn.active { opacity: 1; color: #2563eb; border-color: #2563eb; font-weight: bold; }
 
+        #swapBtn i { transition: transform 0.3s ease; }
+        
+        .speak-btn { opacity: 0.5; transition: all 0.2s; padding: 6px; border-radius: 50%; cursor: pointer; color: #475569; }
+        .speak-btn:hover, .speak-btn:active { opacity: 1; background-color: rgba(0,0,0,0.05); color: #2563eb; }
+
+        [contenteditable]:focus { outline: none; background-color: #fff; border-bottom: 1px dashed #94a3b8; }
+
         #ocr-overlay, #drag-overlay { backdrop-filter: blur(8px); }
         .drag-box { border: 4px dashed #60a5fa; background-color: rgba(239, 246, 255, 0.9); }
-
-        /* Queue Indicator */
-        #queue-indicator { 
-            position: fixed; top: 70px; right: 10px; 
-            background: rgba(37, 99, 235, 0.9); color: white; 
-            padding: 6px 12px; border-radius: 20px; font-size: 11px; font-weight: bold;
-            z-index: 40; display: none; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-        }
-        /* Cooling Down Overlay */
-        #cooling-overlay { position: fixed; inset: 0; background: rgba(255,255,255,0.9); z-index: 60; display: none; flex-direction: column; align-items: center; justify-content: center; backdrop-filter: blur(4px); }
     </style>
 </head>
 <body class="h-[100dvh] flex flex-col overflow-hidden text-slate-800 bg-[#f8fafc]">
 
-    <div id="queue-indicator"><i class="fa-solid fa-hourglass-half fa-spin mr-1"></i> 排隊處理中...</div>
-
-    <div id="cooling-overlay">
-        <i class="fa-solid fa-triangle-exclamation text-5xl text-amber-500 mb-4 animate-bounce"></i>
-        <h3 class="text-2xl font-bold text-slate-800">API 頻率限制</h3>
-        <p class="text-base text-slate-600 mt-2 text-center px-6">觸發 Google 流量管制，正在自動冷卻...</p>
-        <p class="text-xs text-red-500 mt-1">若此畫面頻繁出現，代表您的 API Key 當日額度已滿</p>
-        <div class="text-4xl font-black text-blue-600 mt-6 font-mono" id="cooling-timer">30</div>
-        <p class="text-xs text-slate-400 mt-2">秒後恢復</p>
-    </div>
-
+    <!-- Top Nav -->
     <div class="bg-white shadow-sm z-20 shrink-0">
         <div class="flex justify-between items-center px-4 py-3 border-b border-slate-100">
             <div class="flex items-center gap-2 text-blue-600 font-bold text-lg">
-                <i class="fa-solid fa-robot"></i>
-                <span>ProTranslate <span class="text-[10px] bg-sky-100 text-sky-700 px-1.5 rounded ml-1 align-top">v50 Final</span></span>
+                <i class="fa-solid fa-screwdriver-wrench"></i>
+                <span>ProTranslate <span class="text-[10px] bg-blue-50 text-blue-600 px-1.5 rounded ml-1 align-top">v44 Fix</span></span>
             </div>
             <div class="flex items-center bg-slate-100 rounded-lg p-1 gap-1 text-sm">
                 <select id="sourceLang" class="bg-transparent font-bold text-slate-700 outline-none px-2 py-1 cursor-pointer w-24">
@@ -95,6 +83,7 @@
                 <button id="swapBtn" class="w-8 h-8 flex items-center justify-center rounded-full text-slate-400 hover:text-blue-600 hover:bg-white hover:shadow-sm transition-all">
                     <i class="fa-solid fa-arrow-right-arrow-left text-xs"></i>
                 </button>
+                <!-- [FIX]: Explicitly added data-code to all options to guarantee correct recognition lang -->
                 <select id="targetLang" class="bg-transparent font-bold text-blue-600 outline-none px-2 py-1 cursor-pointer w-24">
                     <option value="vi-VN" data-code="vi-VN">越文 (VN)</option>
                     <option value="en-US" data-code="en-US">英文 (US)</option>
@@ -108,26 +97,28 @@
         </div>
     </div>
 
+    <!-- Main Content -->
     <div id="main-container" class="flex-1 overflow-y-auto custom-scroll p-4 space-y-4 bg-[#f8fafc] pb-32 relative" onclick="closeKeyboard()">
         <div id="welcome-msg" class="flex flex-col items-center justify-center h-full text-slate-400 text-center opacity-60">
             <div class="relative mb-4">
-                <i class="fa-solid fa-shield-halved text-5xl text-sky-400"></i>
+                <i class="fa-solid fa-rotate text-5xl"></i>
             </div>
-            <p class="text-sm font-medium">防護系統已啟動</p>
-            <p class="text-xs mt-2">智慧排隊 + 額度偵測</p>
+            <p class="text-sm font-medium">會議模式邏輯已優化</p>
+            <p class="text-xs mt-2">Language Switching Fixed</p>
         </div>
         <div id="message-stream" class="flex flex-col gap-4 pb-4"></div>
         <div id="speech-preview" class="hidden sticky bottom-2 mx-auto bg-slate-800/90 backdrop-blur text-white px-5 py-3 rounded-full shadow-lg text-sm max-w-[90%] text-center z-10 border border-slate-600/50">
             <div class="flex items-center justify-center gap-3">
                 <div class="flex gap-1">
-                    <div class="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse"></div>
-                    <div class="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse delay-75"></div>
+                    <div class="w-1.5 h-1.5 bg-blue-500 rounded-full animate-pulse"></div>
+                    <div class="w-1.5 h-1.5 bg-blue-500 rounded-full animate-pulse delay-75"></div>
                 </div>
                 <span id="preview-text">聆聽中...</span>
             </div>
         </div>
     </div>
 
+    <!-- Overlays -->
     <div id="drag-overlay" class="hidden fixed inset-0 z-[100] bg-slate-50/90 flex items-center justify-center p-8">
         <div class="drag-box w-full h-full rounded-3xl flex flex-col items-center justify-center text-blue-500 animate-pulse">
             <i class="fa-solid fa-cloud-arrow-up text-8xl mb-6"></i>
@@ -143,6 +134,7 @@
         <p class="text-xs text-slate-300 mt-2 font-mono" id="ocr-status">初始化引擎...</p>
     </div>
 
+    <!-- Bottom Controls -->
     <div id="ctrl-chat" class="bg-white border-t border-slate-200 p-3 pb-6 flex flex-col gap-2 z-30 shadow-[0_-4px_20px_rgba(0,0,0,0.05)] transition-transform duration-300">
         <div class="flex items-end gap-2">
             <button id="btn-camera" class="shrink-0 w-12 h-12 rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-blue-600 active:scale-95 transition-all flex items-center justify-center relative"><i class="fa-solid fa-camera text-xl"></i></button>
@@ -157,6 +149,7 @@
         <p class="text-center text-[10px] text-slate-400">按住說話 / 貼上圖片 / 點擊拍照</p>
     </div>
     
+    <!-- Meeting Controls -->
     <div id="ctrl-meeting" class="hidden bg-white border-t border-slate-200 p-4 pb-8 z-30 shadow-[0_-4px_20px_rgba(0,0,0,0.05)]">
         <div class="flex justify-center gap-4">
             <button id="btn-meeting-src" class="flex-1 h-16 rounded-2xl border-2 border-slate-200 bg-slate-50 text-slate-600 flex flex-col items-center justify-center gap-1 hover:bg-slate-100 active:scale-95 transition-all">
@@ -170,12 +163,12 @@
     </div>
 
     <div id="toast" class="fixed top-6 left-1/2 -translate-x-1/2 bg-slate-800/90 backdrop-blur text-white px-4 py-2 rounded-full shadow-lg text-sm hidden z-50 transition-opacity flex items-center gap-2">
-        <i class="fa-solid fa-circle-exclamation"></i><span id="toast-msg">通知</span>
+        <i class="fa-solid fa-robot"></i><span id="toast-msg">通知</span>
     </div>
 
     <script>
         // === STATE MANAGEMENT ===
-        const App = { mode: 'chat', recognition: null, isRecording: false, isStarting: false, meetingTrack: null, tempTranscript: '', silenceTimer: null, SILENCE_MS: 1200, isTouch: false, isCooling: false };
+        const App = { mode: 'chat', recognition: null, isRecording: false, isStarting: false, meetingTrack: null, tempTranscript: '', silenceTimer: null, SILENCE_MS: 1500, isTouch: false };
         const UI = {
             tabs: { chat: document.getElementById('tab-chat'), meeting: document.getElementById('tab-meeting') },
             ctrls: { chat: document.getElementById('ctrl-chat'), meeting: document.getElementById('ctrl-meeting') },
@@ -184,105 +177,27 @@
             preview: { box: document.getElementById('speech-preview'), text: document.getElementById('preview-text') },
             btns: { ptt: document.getElementById('btn-ptt'), mSrc: document.getElementById('btn-meeting-src'), mTgt: document.getElementById('btn-meeting-tgt'), lSrc: document.getElementById('label-src'), lTgt: document.getElementById('label-tgt'), swap: document.getElementById('swapBtn'), cam: document.getElementById('btn-camera'), send: document.getElementById('btn-send') },
             ocrOverlay: document.getElementById('ocr-overlay'), ocrStatus: document.getElementById('ocr-status'), ocrBar: document.getElementById('ocr-progress-bar'), dragOverlay: document.getElementById('drag-overlay'), toast: { box: document.getElementById('toast'), msg: document.getElementById('toast-msg') },
-            charCount: document.getElementById('char-counter'),
-            queueInd: document.getElementById('queue-indicator'),
-            cooling: { box: document.getElementById('cooling-overlay'), timer: document.getElementById('cooling-timer') }
+            charCount: document.getElementById('char-counter')
         };
 
-        // === QUEUE SYSTEM (STRICT) ===
-        const TransQueue = {
-            items: [],
-            isProcessing: false,
-            delay: 6000, // 6秒延遲 = 10 RPM (非常安全)
-            
-            add: function(text, sLang, tLang, msgId) {
-                if(App.isCooling) {
-                    updateBubbleTrans(msgId, "冷卻中...請稍候", false);
-                    return;
-                }
-                this.items.push({ text, sLang, tLang, msgId });
-                UI.queueInd.style.display = 'block';
-                this.process();
-            },
-            
-            process: async function() {
-                if (this.isProcessing) return;
-                if (this.items.length === 0) {
-                    UI.queueInd.style.display = 'none';
-                    return;
-                }
-                
-                this.isProcessing = true;
-                const task = this.items.shift();
-                
-                try {
-                    updateBubbleTrans(task.msgId, '...', false);
-                    const trans = await fetchTranslateAPI(task.text, task.sLang, task.tLang);
-                    
-                    if (trans.includes("429")) {
-                        // 觸發全面冷卻
-                        triggerCoolingDown();
-                        updateBubbleTrans(task.msgId, "API 忙碌 (429)", false);
-                        // 把任務放回開頭，等冷卻完再試
-                        this.items.unshift(task); 
-                    } else if (trans.includes("404")) {
-                         updateBubbleTrans(task.msgId, "API Key 或模型錯誤 (404)", false);
-                    } else if (trans.includes("Error") || trans.includes("連線錯誤") || trans.includes("API Key Error")) {
-                        updateBubbleTrans(task.msgId, trans, false);
-                    } else {
-                        updateBubbleTrans(task.msgId, trans.trim(), true, task.tLang);
-                    }
-                } catch (e) {
-                    updateBubbleTrans(task.msgId, "內部錯誤", false);
-                }
-
-                // 只有在沒有觸發冷卻時才繼續
-                if (!App.isCooling) {
-                    await new Promise(r => setTimeout(r, this.delay));
-                    this.isProcessing = false;
-                    this.process();
-                } else {
-                    this.isProcessing = false; 
-                }
-            }
-        };
-
-        function triggerCoolingDown() {
-            if(App.isCooling) return;
-            App.isCooling = true;
-            stopEverything(); 
-            UI.cooling.box.style.display = 'flex';
-            let timeLeft = 30;
-            UI.cooling.timer.innerText = timeLeft;
-            
-            const timer = setInterval(() => {
-                timeLeft--;
-                UI.cooling.timer.innerText = timeLeft;
-                if (timeLeft <= 0) {
-                    clearInterval(timer);
-                    App.isCooling = false;
-                    UI.cooling.box.style.display = 'none';
-                    showToast("冷卻結束，恢復服務");
-                    TransQueue.process(); // 重啟佇列
-                }
-            }, 1000);
-        }
-
-        // === SPEECH RECOGNITION ===
+        // === SPEECH RECOGNITION (Strict Lang Check) ===
         function initRecognition(trackOrMode) {
+            // Always kill previous instance
             if (App.recognition) { try { App.recognition.onend = null; App.recognition.abort(); } catch(e){} App.recognition = null; }
             
             const SpeechRecognition = window.webkitSpeechRecognition || window.SpeechRecognition;
             if (!SpeechRecognition) { showToast("瀏覽器不支援語音"); return null; }
             
             const rec = new SpeechRecognition();
-            rec.continuous = false;
+            rec.continuous = false; // Pulse Mode for stability
             rec.interimResults = true; 
             rec.maxAlternatives = 1;
 
+            // [FIX]: Robust Language Selection Logic
             const getLangCode = (isSource) => {
                 const el = isSource ? UI.inputs.source : UI.inputs.target;
                 const opt = el.options[el.selectedIndex];
+                // Prioritize data-code, fallback to value
                 return opt.getAttribute('data-code') || opt.value || 'zh-TW';
             };
 
@@ -290,11 +205,13 @@
             if (App.mode === 'chat') {
                 langCode = getLangCode(true);
             } else {
+                // Meeting Mode Logic
                 if (trackOrMode === 'src') langCode = getLangCode(true);
                 else if (trackOrMode === 'tgt') langCode = getLangCode(false);
             }
 
             rec.lang = langCode;
+            console.log(`[Speech] Starting rec with lang: ${langCode}`);
 
             rec.onstart = () => {
                 App.isRecording = true; 
@@ -303,6 +220,10 @@
                 UI.preview.box.classList.remove('hidden'); 
                 UI.preview.text.textContent = "聆聽中..."; 
                 if (App.mode === 'chat') UI.btns.ptt.classList.add('btn-mic-hold');
+                
+                // Visual Feedback for Language
+                let langName = langCode.includes('vi') ? '越文' : (langCode.includes('zh') ? '中文' : '英文');
+                showToast(`正在聆聽: ${langName}`);
             };
 
             rec.onresult = (event) => {
@@ -325,9 +246,11 @@
                 UI.btns.ptt.classList.remove('btn-mic-hold');
                 if (App.tempTranscript.trim()) { processText(App.tempTranscript); App.tempTranscript = ''; }
                 
-                if (App.mode === 'meeting' && App.meetingTrack !== null && !App.isCooling) { 
+                // Meeting Mode Loop (Watchdog)
+                if (App.mode === 'meeting' && App.meetingTrack !== null) { 
                     setTimeout(() => { 
-                        if (App.meetingTrack !== null && !App.isRecording && !App.isStarting && !App.isCooling) { 
+                        // Only restart if track hasn't changed to null (stopped)
+                        if (App.meetingTrack !== null && !App.isRecording && !App.isStarting) { 
                             const newRec = initRecognition(App.meetingTrack); 
                             if(newRec) { 
                                 App.isStarting = true; 
@@ -341,6 +264,7 @@
             };
             
             rec.onerror = (e) => { 
+                console.log("Speech Error", e.error); 
                 App.isStarting = false; 
                 if (e.error === 'not-allowed') { showToast("請允許麥克風權限"); stopEverything(); } 
             };
@@ -349,26 +273,49 @@
             return rec;
         }
 
-        // === CONTROL LOGIC ===
+        // === MEETING CONTROL LOGIC (FIXED) ===
         function toggleMeeting(track) {
-            if (App.isStarting || App.isCooling) return;
-            if (App.meetingTrack === track) { stopEverything(); return; }
+            if (App.isStarting) {
+                console.log("Busy starting...");
+                return;
+            }
+
+            // 1. If clicking same track -> Stop
+            if (App.meetingTrack === track) {
+                stopEverything();
+                return;
+            }
+
+            // 2. If clicking different track -> Switch
+            // First, stop everything cleanly
             stopEverything();
+            
+            // Set new track
             App.meetingTrack = track;
+            
+            // Update UI immediately
             if (track === 'src') UI.btns.mSrc.classList.add('meeting-active-src');
             else UI.btns.mTgt.classList.add('meeting-active-tgt');
+
+            // 3. Start new recognition with delay to allow browser to release mic
             App.isStarting = true;
             setTimeout(() => {
-                if (App.meetingTrack === null) { App.isStarting = false; return; }
+                if (App.meetingTrack === null) { App.isStarting = false; return; } // User stopped during delay
                 const rec = initRecognition(track);
-                try { rec.start(); } catch(e) { console.error(e); stopEverything(); }
-            }, 300);
+                try { 
+                    rec.start(); 
+                } catch(e) {
+                    console.error("Meeting start failed", e);
+                    showToast("請重試");
+                    stopEverything();
+                }
+            }, 300); // Increased buffer to 300ms for safety
         }
 
         function stopEverything() {
             App.isStarting = false;
             if (App.recognition) {
-                App.recognition.onend = null;
+                App.recognition.onend = null; // Kill loop
                 try { App.recognition.abort(); } catch(e){}
                 App.recognition = null;
             }
@@ -379,7 +326,7 @@
             UI.btns.ptt.classList.remove('btn-mic-hold');
         }
 
-        // === TTS ===
+        // === REST OF LOGIC (Same as v40/41) ===
         let audioQueue = [];
         let isPlayingQueue = false;
         function playNextInQueue() {
@@ -422,7 +369,7 @@
             }
         }
         function fallbackToNativeTTS(text, langCode) {
-            const u = new SpeechSynthesisUtterance(text); u.lang = langCode; u.rate = 1.0; 
+            const u = new SpeechSynthesisUtterance(text); u.lang = langCode; u.rate = 0.9; 
             const voices = window.speechSynthesis.getVoices();
             let targetVoice = null;
             if (langCode.includes('vi')) targetVoice = voices.find(v => v.lang.includes('vi') || v.name.includes('Viet') || v.name.includes('Tiếng Việt'));
@@ -432,60 +379,43 @@
         }
         window.speechSynthesis.getVoices();
 
-        function processText(text) {
+        async function processText(text) {
             if (!text || text.trim().length === 0) return;
             if (text.length > 3000) { showToast("字數超過 3000 限制"); text = text.substring(0, 3000); }
             let sLang, tLang, align;
             const getVal = (isSource) => isSource ? UI.inputs.source.value : UI.inputs.target.value;
             if (App.mode === 'chat') { sLang = getVal(true); tLang = getVal(false); align = 'right'; }
             else { if (App.meetingTrack === 'src') { sLang = getVal(true); tLang = getVal(false); align = 'right'; } else { sLang = getVal(false); tLang = getVal(true); align = 'left'; } }
-            
-            const msgId = addBubble(text, '<i class="fa-solid fa-hourglass-start animate-pulse"></i> 排隊中...', '', align, sLang, tLang);
-            TransQueue.add(text, sLang, tLang, msgId);
-        }
-
-        // === 核心翻譯邏輯 (標準模型) ===
-        async function fetchTranslateAPI(text, s, t) {
-            const API_KEY = "AIzaSyBTaECgUCUQ1icaHD7h95GKnqkj-nCMBHU"; 
-            if (!API_KEY) return "API Key Error";
-
-            // [FIX]: 使用 gemini-1.5-flash，這是目前最穩定的免費版模型
-            const modelName = 'gemini-1.5-flash'; 
-
-            const sCode = s.split('-')[0];
-            const tCode = t.split('-')[0];
-            const langName = { 'zh': 'Chinese', 'vi': 'Vietnamese', 'en': 'English' };
-            const prompt = `Translate to ${langName[tCode] || tCode}:\n${text}`;
-            
-            const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${API_KEY}`;
-
+            const msgId = addBubble(text, '翻譯中...', '驗證中...', align, sLang, tLang);
             try {
-                const response = await fetch(url, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        contents: [{ parts: [{ text: prompt }] }],
-                        generationConfig: { temperature: 0.1, maxOutputTokens: 800 }
-                    })
-                });
-
-                if (!response.ok) {
-                    if (response.status === 429) return "429";
-                    if (response.status === 404) return "404";
-                    return `Error ${response.status}`;
-                }
-
-                const data = await response.json();
-                if (data.candidates && data.candidates[0].content && data.candidates[0].content.parts) {
-                    return data.candidates[0].content.parts[0].text.trim();
-                } else {
-                    return "無回傳";
-                }
-            } catch (e) {
-                return "連線錯誤";
-            }
+                const transChunks = splitTextSafe(text, 1000);
+                let fullTrans = "";
+                for (const chunk of transChunks) { const res = await fetchTranslate(chunk, sLang, tLang); fullTrans += res + " "; }
+                updateBubbleTrans(msgId, fullTrans.trim(), true, tLang); 
+                if (fullTrans && !fullTrans.includes("錯誤")) {
+                    const verifyChunks = splitTextSafe(fullTrans, 1000);
+                    let fullVerify = "";
+                    for (const chunk of verifyChunks) { const res = await fetchTranslate(chunk, tLang, sLang); fullVerify += res + " "; }
+                    updateBubbleVerify(msgId, fullVerify.trim());
+                } else { updateBubbleVerify(msgId, "..."); }
+            } catch (e) { updateBubbleTrans(msgId, "翻譯失敗", false); updateBubbleVerify(msgId, "---"); }
         }
-
+        async function fetchTranslate(text, s, t) {
+            const controller = new AbortController(); setTimeout(() => controller.abort(), 8000);
+            try {
+                let gs = s.includes('vi') ? 'vi' : s.replace('zh-TW', 'zh-TW'); let gt = t.includes('vi') ? 'vi' : t.replace('zh-TW', 'zh-TW');
+                const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${gs}&tl=${gt}&dt=t&q=${encodeURIComponent(text)}`;
+                const res = await fetch(url, { signal: controller.signal });
+                if (!res.ok) throw new Error("G-Err"); const data = await res.json();
+                if (data && data[0]) return data[0].map(x => x[0]).join('');
+            } catch (e) { /* fallback */ }
+            try {
+                const ms = s.includes('vi') ? 'vi-VN' : s; const mt = t.includes('vi') ? 'vi-VN' : t;
+                const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=${ms}|${mt}`;
+                const res = await fetch(url); const data = await res.json();
+                return (data.responseStatus === 200) ? data.responseData.translatedText : "API 忙碌";
+            } catch (e) { return "網路錯誤"; }
+        }
         function addBubble(orig, trans, verify, align, sLang, tLang) {
             UI.welcome.classList.add('hidden');
             const id = 'msg-' + Date.now() + Math.random().toString(36).substr(2);
@@ -493,16 +423,13 @@
             const bubbleColor = align === 'right' ? 'bg-white border-r-4 border-blue-500' : 'bg-white border-l-4 border-orange-400'; 
             const label = sLang.toUpperCase().replace('-VN','').replace('-TW','').replace('-US','');
             const escOrig = orig.replace(/'/g, "\\'").replace(/"/g, '&quot;').replace(/\n/g, ' ');
-            const html = `<div id="${id}" class="flex flex-col ${alignClass} fade-in-up w-full msg-bubble"><div class="max-w-[90%] ${bubbleColor} p-3 rounded-xl shadow-sm border border-slate-200"><div class="flex justify-between mb-1 opacity-60 text-xs"><span class="font-bold text-slate-500">${label}</span><span>${new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</span></div><div class="flex items-start gap-2 mb-2"><p id="orig-${id}" class="text-slate-800 text-lg flex-1 outline-none border-b border-transparent hover:border-slate-300 focus:border-blue-500 focus:bg-yellow-50 transition-all rounded px-1 selectable-text" contenteditable="true" onblur="reTranslate('${id}', '${sLang}', '${tLang}')" onkeydown="handleEditKey(event, '${id}', '${sLang}', '${tLang}')" title="點擊編輯">${orig}</p><button id="btn-speak-orig-${id}" onclick="speakText('${escOrig}', '${sLang}')" class="speak-btn shrink-0 mt-1"><i class="fa-solid fa-volume-high"></i></button></div><div class="pt-2 border-t border-slate-100"><div class="flex items-start gap-2"><p class="trans-text text-base font-medium text-blue-700 flex-1 flex items-center gap-2 selectable-text">${trans}</p><button id="btn-tts-${id}" class="speak-btn shrink-0 mt-1 hidden"><i class="fa-solid fa-volume-high"></i></button></div></div></div></div>`;
+            const html = `<div id="${id}" class="flex flex-col ${alignClass} fade-in-up w-full msg-bubble"><div class="max-w-[90%] ${bubbleColor} p-3 rounded-xl shadow-sm border border-slate-200"><div class="flex justify-between mb-1 opacity-60 text-xs"><span class="font-bold text-slate-500">${label}</span><span>${new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</span></div><div class="flex items-start gap-2 mb-2"><p id="orig-${id}" class="text-slate-800 text-lg flex-1 outline-none border-b border-transparent hover:border-slate-300 focus:border-blue-500 focus:bg-yellow-50 transition-all rounded px-1 selectable-text" contenteditable="true" onblur="reTranslate('${id}', '${sLang}', '${tLang}')" onkeydown="handleEditKey(event, '${id}', '${sLang}', '${tLang}')" title="點擊編輯">${orig}</p><button id="btn-speak-orig-${id}" onclick="speakText('${escOrig}', '${sLang}')" class="speak-btn shrink-0 mt-1"><i class="fa-solid fa-volume-high"></i></button></div><div class="pt-2 border-t border-slate-100"><div class="flex items-start gap-2"><p class="trans-text text-base font-medium text-blue-700 flex-1 flex items-center gap-2 selectable-text"><i class="fa-solid fa-spinner fa-spin text-xs"></i> ${trans}</p><button id="btn-tts-${id}" class="speak-btn shrink-0 mt-1 hidden"><i class="fa-solid fa-volume-high"></i></button></div></div><div class="mt-1 pt-1 bg-slate-50/50 rounded p-1 text-xs text-slate-500 flex gap-1 items-center"><i class="fa-solid fa-check-double"></i> 驗證: <span class="verify-text italic selectable-text">${verify}</span></div></div></div>`;
             UI.stream.insertAdjacentHTML('beforeend', html); UI.container.scrollTop = UI.container.scrollHeight; return id;
         }
         function updateBubbleTrans(id, text, success, tLang) { const el = document.getElementById(id); if(!el) return; const p = el.querySelector('.trans-text'); p.innerHTML = text; p.className = success ? 'trans-text text-lg font-bold text-blue-700 flex-1 selectable-text' : 'trans-text text-base text-red-500 flex-1 selectable-text'; if (success) { const btn = document.getElementById(`btn-tts-${id}`); const escText = text.replace(/'/g, "\\'").replace(/"/g, '&quot;').replace(/\n/g, ' '); btn.setAttribute('onclick', `speakText('${escText}', '${tLang}')`); btn.classList.remove('hidden'); } }
+        function updateBubbleVerify(id, text) { const el = document.getElementById(id); if(el) el.querySelector('.verify-text').innerText = text; }
         function handleEditKey(e, id, sLang, tLang) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); document.getElementById('orig-' + id).blur(); } }
-        async function reTranslate(id, sLang, tLang) { 
-            const origEl = document.getElementById('orig-' + id); if (!origEl) return; 
-            const newText = origEl.innerText.trim(); if (!newText) return; 
-            TransQueue.add(newText, sLang, tLang, id);
-        }
+        async function reTranslate(id, sLang, tLang) { const origEl = document.getElementById('orig-' + id); if (!origEl) return; const newText = origEl.innerText.trim(); if (!newText) return; const speakBtn = document.getElementById('btn-speak-orig-' + id); if (speakBtn) { const escNewText = newText.replace(/'/g, "\\'").replace(/"/g, '&quot;'); speakBtn.setAttribute('onclick', `speakText('${escNewText}', '${sLang}')`); } const el = document.getElementById(id); el.querySelector('.trans-text').innerHTML = '<i class="fa-solid fa-spinner fa-spin text-xs"></i> ...'; el.querySelector('.verify-text').innerText = '...'; const transBtn = document.getElementById(`btn-tts-${id}`); if (transBtn) transBtn.classList.add('hidden'); try { const trans = await fetchTranslate(newText, sLang, tLang); updateBubbleTrans(id, trans, true, tLang); if (trans && trans !== "API 錯誤") { const back = await fetchTranslate(trans, tLang, sLang); updateBubbleVerify(id, back); } } catch (e) { updateBubbleTrans(id, "Err", false); } }
         
         // Events & Bindings
         function switchMode(mode) { stopEverything(); App.mode = mode; if (mode === 'chat') { UI.tabs.chat.classList.add('active'); UI.tabs.meeting.classList.remove('active'); UI.ctrls.chat.classList.remove('hidden'); UI.ctrls.meeting.classList.add('hidden'); } else { UI.tabs.meeting.classList.add('active'); UI.tabs.chat.classList.remove('active'); UI.ctrls.meeting.classList.remove('hidden'); UI.ctrls.chat.classList.add('hidden'); updateLabels(); } }
@@ -514,7 +441,7 @@
         function closeKeyboard() { if (document.activeElement === UI.inputs.text) UI.inputs.text.blur(); }
         function startPTT(e) { if (e.type === 'touchstart') { App.isTouch = true; e.preventDefault(); } else if (e.type === 'mousedown' && App.isTouch) return; if (App.mode !== 'chat') return; startListening('chat'); }
         function stopPTT(e) { if (e.type === 'touchend') e.preventDefault(); if (App.mode !== 'chat') return; if (App.recognition) App.recognition.stop(); }
-        function startListening(trackOrMode) { if (App.isStarting || App.isCooling) return; App.isStarting = true; const rec = initRecognition(trackOrMode); try { rec.start(); } catch(e) { App.isStarting = false; } }
+        function startListening(trackOrMode) { if (App.isStarting) return; App.isStarting = true; const rec = initRecognition(trackOrMode); try { rec.start(); } catch(e) { App.isStarting = false; } }
         
         function triggerCamera() { UI.inputs.camera.click(); }
         async function processImageFile(file) {
@@ -547,4 +474,3 @@
     </script>
 </body>
 </html>
-
