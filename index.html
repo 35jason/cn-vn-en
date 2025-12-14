@@ -402,17 +402,17 @@
         }
 // === 修改後的 Gemini 翻譯函式 ===
 // === 修改後的 Gemini 翻譯函式 (已修復邏輯) ===
+// === 修改後的 Gemini 翻譯函式 (已修正) ===
 async function fetchTranslate(text, s, t) {
-    // ⚠️ 你的 Gemini API Key
+    // ✅ 你的 Gemini API Key (已填入)
     const API_KEY = "AIzaSyC08IGznw7IlTN3CXGblddj8lchmz1YMJA"; 
 
-    // ❌ 原本這裡的錯誤檢查邏輯造成了問題，我們把它刪除或註解掉
-    // if (API_KEY === "AIzaSyC08IGznw7IlTN3CXGblddj8lchmz1YMJA") { ... } 
+    // ❌ 之前這裡的 if 判斷式造成了問題，請直接刪除它，不要留著。
 
-    // 簡單檢查一下是否有值即可
-    if (!API_KEY || API_KEY.length < 10) {
-        alert("API Key 似乎有誤，請檢查程式碼");
-        return "API Key 設定錯誤";
+    // 簡單檢查 Key 是否存在即可
+    if (!API_KEY) {
+        alert("API Key 未設定");
+        return "API Key 未設定";
     }
 
     // 將語言代碼轉換為 Gemini 看得懂的自然語言
@@ -428,7 +428,6 @@ async function fetchTranslate(text, s, t) {
     const sourceLang = langMap[s] || s;
     const targetLang = langMap[t] || t;
 
-    // 設計 Prompt
     const prompt = `You are a professional translator. Translate the following text from ${sourceLang} to ${targetLang}. 
     Output ONLY the translated text without any explanations, quotes, or notes.
     
@@ -440,23 +439,16 @@ async function fetchTranslate(text, s, t) {
     try {
         const response = await fetch(url, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                contents: [{
-                    parts: [{ text: prompt }]
-                }],
-                generationConfig: {
-                    temperature: 0.1,
-                }
+                contents: [{ parts: [{ text: prompt }] }],
+                generationConfig: { temperature: 0.1 }
             })
         });
 
         if (!response.ok) {
-            // 這裡可以印出更多錯誤資訊方便除錯
             const errData = await response.json();
-            console.error("Gemini API Error Details:", errData);
+            console.error("Gemini API Error Detail:", errData); // 這裡會在 Console 顯示詳細錯誤
             throw new Error(`HTTP error! status: ${response.status}`);
         }
 
@@ -470,7 +462,7 @@ async function fetchTranslate(text, s, t) {
 
     } catch (e) {
         console.error("Gemini API Error:", e);
-        return "連線錯誤";
+        return "連線錯誤"; // 如果看到這個，請按 F12 看 Console 的詳細錯誤
     }
 }
         function addBubble(orig, trans, verify, align, sLang, tLang) {
@@ -531,6 +523,7 @@ async function fetchTranslate(text, s, t) {
     </script>
 </body>
 </html>
+
 
 
 
