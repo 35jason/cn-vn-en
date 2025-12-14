@@ -400,22 +400,74 @@
                 } else { updateBubbleVerify(msgId, "..."); }
             } catch (e) { updateBubbleTrans(msgId, "翻譯失敗", false); updateBubbleVerify(msgId, "---"); }
         }
-        async function fetchTranslate(text, s, t) {
-            const controller = new AbortController(); setTimeout(() => controller.abort(), 8000);
-            try {
-                let gs = s.includes('vi') ? 'vi' : s.replace('zh-TW', 'zh-TW'); let gt = t.includes('vi') ? 'vi' : t.replace('zh-TW', 'zh-TW');
-                const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${gs}&tl=${gt}&dt=t&q=${encodeURIComponent(text)}`;
-                const res = await fetch(url, { signal: controller.signal });
-                if (!res.ok) throw new Error("G-Err"); const data = await res.json();
-                if (data && data[0]) return data[0].map(x => x[0]).join('');
-            } catch (e) { /* fallback */ }
-            try {
-                const ms = s.includes('vi') ? 'vi-VN' : s; const mt = t.includes('vi') ? 'vi-VN' : t;
-                const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=${ms}|${mt}`;
-                const res = await fetch(url); const data = await res.json();
-                return (data.responseStatus === 200) ? data.responseData.translatedText : "API 忙碌";
-            } catch (e) { return "網路錯誤"; }
+// === 修改後的 Gemini 翻譯函式 ===
+async function fetchTranslate(text, s, t) {
+    // ⚠️ 請在此填入你的 Gemini API Key
+    const API_KEY = "AIzaSyB97wxd71_bttoy1mVYSQ4qYEbE6QJIrWE"; 
+
+    // 如果沒有 Key，回傳錯誤提示
+    if (API_KEY === "AIzaSyB97wxd71_bttoy1mVYSQ4qYEbE6QJIrWE") {
+        alert("請在程式碼中填入 Gemini API Key！");
+        return "API Key 未設定";
+    }
+
+    // 將語言代碼轉換為 Gemini 看得懂的自然語言，提升準確度
+    const langMap = {
+        'zh-TW': 'Traditional Chinese (Taiwan)',
+        'vi-VN': 'Vietnamese',
+        'en-US': 'English',
+        'zh': 'Traditional Chinese',
+        'vi': 'Vietnamese',
+        'en': 'English'
+    };
+
+    const sourceLang = langMap[s] || s;
+    const targetLang = langMap[t] || t;
+
+    // 設計 Prompt (提示詞)：要求它扮演專業翻譯，並只輸出結果
+    const prompt = `You are a professional translator. Translate the following text from ${sourceLang} to ${targetLang}. 
+    Output ONLY the translated text without any explanations, quotes, or notes.
+    
+    Text to translate:
+    ${text}`;
+
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`;
+
+    try {
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                contents: [{
+                    parts: [{ text: prompt }]
+                }],
+                generationConfig: {
+                    temperature: 0.1, // 降低隨機性，讓翻譯更穩定
+                }
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
         }
+
+        const data = await response.json();
+        
+        // 解析 Gemini 的回傳結構
+        if (data.candidates && data.candidates[0].content && data.candidates[0].content.parts) {
+            return data.candidates[0].content.parts[0].text.trim();
+        } else {
+            return "翻譯失敗 (無回傳)";
+        }
+
+    } catch (e) {
+        console.error("Gemini API Error:", e);
+        // 如果 Gemini 失敗，可以在這裡寫 fallback 回原本的 Google Translate 邏輯
+        return "連線錯誤";
+    }
+}
         function addBubble(orig, trans, verify, align, sLang, tLang) {
             UI.welcome.classList.add('hidden');
             const id = 'msg-' + Date.now() + Math.random().toString(36).substr(2);
@@ -474,3 +526,4 @@
     </script>
 </body>
 </html>
+
