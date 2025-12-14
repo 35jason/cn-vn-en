@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>ProTranslate v47 - 穩定抗斷線版</title>
+    <title>ProTranslate v48 - 智慧排隊版</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src='https://unpkg.com/tesseract.js@v5/dist/tesseract.min.js'></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -63,15 +63,20 @@
 
         #ocr-overlay, #drag-overlay { backdrop-filter: blur(8px); }
         .drag-box { border: 4px dashed #60a5fa; background-color: rgba(239, 246, 255, 0.9); }
+
+        /* Queue Indicator */
+        #queue-indicator { position: fixed; top: 70px; right: 10px; background: rgba(0,0,0,0.7); color: white; padding: 4px 8px; border-radius: 12px; font-size: 10px; z-index: 40; display: none; }
     </style>
 </head>
 <body class="h-[100dvh] flex flex-col overflow-hidden text-slate-800 bg-[#f8fafc]">
 
+    <div id="queue-indicator"><i class="fa-solid fa-hourglass-half fa-spin mr-1"></i> 排隊中...</div>
+
     <div class="bg-white shadow-sm z-20 shrink-0">
         <div class="flex justify-between items-center px-4 py-3 border-b border-slate-100">
             <div class="flex items-center gap-2 text-blue-600 font-bold text-lg">
-                <i class="fa-solid fa-shield-cat"></i>
-                <span>ProTranslate <span class="text-[10px] bg-green-100 text-green-700 px-1.5 rounded ml-1 align-top">v47 Stable</span></span>
+                <i class="fa-solid fa-layer-group"></i>
+                <span>ProTranslate <span class="text-[10px] bg-purple-100 text-purple-700 px-1.5 rounded ml-1 align-top">v48 Queue</span></span>
             </div>
             <div class="flex items-center bg-slate-100 rounded-lg p-1 gap-1 text-sm">
                 <select id="sourceLang" class="bg-transparent font-bold text-slate-700 outline-none px-2 py-1 cursor-pointer w-24">
@@ -98,10 +103,10 @@
     <div id="main-container" class="flex-1 overflow-y-auto custom-scroll p-4 space-y-4 bg-[#f8fafc] pb-32 relative" onclick="closeKeyboard()">
         <div id="welcome-msg" class="flex flex-col items-center justify-center h-full text-slate-400 text-center opacity-60">
             <div class="relative mb-4">
-                <i class="fa-solid fa-shield-cat text-5xl text-green-500"></i>
+                <i class="fa-solid fa-stopwatch text-5xl text-purple-400"></i>
             </div>
-            <p class="text-sm font-medium">穩定模式 (抗429錯誤)</p>
-            <p class="text-xs mt-2">驗證功能已停用以節省額度</p>
+            <p class="text-sm font-medium">智慧排隊系統已啟動</p>
+            <p class="text-xs mt-2">防止 429 錯誤 (每4秒一則)</p>
         </div>
         <div id="message-stream" class="flex flex-col gap-4 pb-4"></div>
         <div id="speech-preview" class="hidden sticky bottom-2 mx-auto bg-slate-800/90 backdrop-blur text-white px-5 py-3 rounded-full shadow-lg text-sm max-w-[90%] text-center z-10 border border-slate-600/50">
@@ -171,7 +176,53 @@
             preview: { box: document.getElementById('speech-preview'), text: document.getElementById('preview-text') },
             btns: { ptt: document.getElementById('btn-ptt'), mSrc: document.getElementById('btn-meeting-src'), mTgt: document.getElementById('btn-meeting-tgt'), lSrc: document.getElementById('label-src'), lTgt: document.getElementById('label-tgt'), swap: document.getElementById('swapBtn'), cam: document.getElementById('btn-camera'), send: document.getElementById('btn-send') },
             ocrOverlay: document.getElementById('ocr-overlay'), ocrStatus: document.getElementById('ocr-status'), ocrBar: document.getElementById('ocr-progress-bar'), dragOverlay: document.getElementById('drag-overlay'), toast: { box: document.getElementById('toast'), msg: document.getElementById('toast-msg') },
-            charCount: document.getElementById('char-counter')
+            charCount: document.getElementById('char-counter'),
+            queueInd: document.getElementById('queue-indicator')
+        };
+
+        // === QUEUE SYSTEM (解決 429 錯誤的核心) ===
+        const TransQueue = {
+            items: [],
+            isProcessing: false,
+            delay: 4000, // 4秒延遲 = 15 RPM (安全範圍)
+            
+            add: function(text, sLang, tLang, msgId) {
+                this.items.push({ text, sLang, tLang, msgId });
+                UI.queueInd.style.display = 'block';
+                this.process();
+            },
+            
+            process: async function() {
+                if (this.isProcessing) return;
+                if (this.items.length === 0) {
+                    UI.queueInd.style.display = 'none';
+                    return;
+                }
+                
+                this.isProcessing = true;
+                const task = this.items.shift();
+                
+                try {
+                    updateBubbleTrans(task.msgId, '...', false); // 顯示處理中
+                    const trans = await fetchTranslateWithFallback(task.text, task.sLang, task.tLang);
+                    
+                    if (trans.includes("429")) {
+                        updateBubbleTrans(task.msgId, "系統忙碌 (429)", false);
+                    } else if (trans.includes("錯誤") || trans.includes("Error") || trans.includes("失敗")) {
+                        updateBubbleTrans(task.msgId, trans.trim(), false);
+                    } else {
+                        updateBubbleTrans(task.msgId, trans.trim(), true, task.tLang);
+                    }
+                } catch (e) {
+                    updateBubbleTrans(task.msgId, "Error", false);
+                }
+
+                // 強制冷卻時間，防止請求過快
+                await new Promise(r => setTimeout(r, this.delay));
+                
+                this.isProcessing = false;
+                this.process(); // 處理下一個
+            }
         };
 
         // === SPEECH RECOGNITION ===
@@ -343,7 +394,7 @@
         }
         window.speechSynthesis.getVoices();
 
-        async function processText(text) {
+        function processText(text) {
             if (!text || text.trim().length === 0) return;
             if (text.length > 3000) { showToast("字數超過 3000 限制"); text = text.substring(0, 3000); }
             let sLang, tLang, align;
@@ -351,50 +402,41 @@
             if (App.mode === 'chat') { sLang = getVal(true); tLang = getVal(false); align = 'right'; }
             else { if (App.meetingTrack === 'src') { sLang = getVal(true); tLang = getVal(false); align = 'right'; } else { sLang = getVal(false); tLang = getVal(true); align = 'left'; } }
             
-            // 預設驗證狀態為 "停用"
-            const msgId = addBubble(text, '...', '已停用', align, sLang, tLang);
-            try {
-                // 1. 快速翻譯
-                const trans = await fetchTranslate(text, sLang, tLang);
-                
-                if (trans.includes("429")) {
-                     updateBubbleTrans(msgId, "系統忙碌 (429)", false);
-                     showToast("請求過快，請稍候...");
-                } else if (trans.includes("錯誤") || trans.includes("Error") || trans.includes("失敗")) {
-                    updateBubbleTrans(msgId, trans.trim(), false);
-                } else {
-                    updateBubbleTrans(msgId, trans.trim(), true, tLang); 
-                    
-                    // 2. 為了節省額度，預設不執行回翻驗證
-                    // 如需開啟，請自行將下方註解取消，但會增加 429 機率
-                    /*
-                    setTimeout(() => {
-                        fetchTranslate(trans, tLang, sLang).then(back => {
-                            updateBubbleVerify(msgId, back);
-                        }).catch(() => updateBubbleVerify(msgId, "?"));
-                    }, 1000);
-                    */
-                }
-            } catch (e) { 
-                updateBubbleTrans(msgId, "Error", false); 
-            }
+            // 立即顯示對話框，但狀態為排隊中
+            const msgId = addBubble(text, '<i class="fa-solid fa-hourglass-start animate-pulse"></i> 排隊中...', '已停用', align, sLang, tLang);
+            
+            // 加入佇列處理 (這是解決 429 的關鍵)
+            TransQueue.add(text, sLang, tLang, msgId);
         }
 
-        // === 抗斷線翻譯核心 (v47 Stable) ===
-        async function fetchTranslate(text, s, t) {
-            const API_KEY = "AIzaSyC08IGznw7IlTN3CXGblddj8lchmz1YMJA"; 
+        // === 翻譯核心：自動 fallback 機制 ===
+        async function fetchTranslateWithFallback(text, s, t) {
+            // 嘗試主模型 (2.0-flash-exp, 之前能用但被限速)
+            let result = await fetchTranslateAPI(text, s, t, 'gemini-2.0-flash-exp');
+            
+            // 如果 404 (找不到模型) 或其他錯誤，嘗試降級到 gemini-pro (最穩定)
+            if (result.includes("404") || result.includes("model not found")) {
+                console.log("降級嘗試: gemini-pro");
+                result = await fetchTranslateAPI(text, s, t, 'gemini-pro');
+            }
+            
+            // 如果還是 404，最後一搏嘗試 1.5-flash-latest
+            if (result.includes("404") || result.includes("model not found")) {
+                console.log("最後嘗試: gemini-1.5-flash-latest");
+                result = await fetchTranslateAPI(text, s, t, 'gemini-1.5-flash-latest');
+            }
 
+            return result;
+        }
+
+        async function fetchTranslateAPI(text, s, t, modelName) {
+            const API_KEY = "AIzaSyC08IGznw7IlTN3CXGblddj8lchmz1YMJA"; 
             if (!API_KEY) return "API Key Error";
 
             const sCode = s.split('-')[0];
             const tCode = t.split('-')[0];
             const langName = { 'zh': 'Chinese', 'vi': 'Vietnamese', 'en': 'English' };
-
             const prompt = `Translate to ${langName[tCode] || tCode}:\n${text}`;
-
-            // [FIX] 改用 1.5-flash-8b (High RPM, Low Latency) 專門解決 429 問題
-            // 如果這個模型還是 429，代表您的 API Key 額度已徹底用盡，需更換 Key
-            const modelName = 'gemini-1.5-flash-8b'; 
             
             const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${API_KEY}`;
 
@@ -404,29 +446,22 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         contents: [{ parts: [{ text: prompt }] }],
-                        generationConfig: { 
-                            temperature: 0.1,
-                            maxOutputTokens: 800
-                        }
+                        generationConfig: { temperature: 0.1, maxOutputTokens: 800 }
                     })
                 });
 
                 if (!response.ok) {
                     if (response.status === 429) return "API 忙碌 (429)";
-                    if (response.status === 404) return "模型錯誤 (404)";
-                    const errData = await response.json();
-                    const errMsg = errData.error ? errData.error.message : response.statusText;
+                    if (response.status === 404) return "Model 404";
                     return `Error ${response.status}`;
                 }
 
                 const data = await response.json();
-                
                 if (data.candidates && data.candidates[0].content && data.candidates[0].content.parts) {
                     return data.candidates[0].content.parts[0].text.trim();
                 } else {
                     return "無回傳";
                 }
-
             } catch (e) {
                 return "連線錯誤";
             }
@@ -439,13 +474,17 @@
             const bubbleColor = align === 'right' ? 'bg-white border-r-4 border-blue-500' : 'bg-white border-l-4 border-orange-400'; 
             const label = sLang.toUpperCase().replace('-VN','').replace('-TW','').replace('-US','');
             const escOrig = orig.replace(/'/g, "\\'").replace(/"/g, '&quot;').replace(/\n/g, ' ');
-            const html = `<div id="${id}" class="flex flex-col ${alignClass} fade-in-up w-full msg-bubble"><div class="max-w-[90%] ${bubbleColor} p-3 rounded-xl shadow-sm border border-slate-200"><div class="flex justify-between mb-1 opacity-60 text-xs"><span class="font-bold text-slate-500">${label}</span><span>${new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</span></div><div class="flex items-start gap-2 mb-2"><p id="orig-${id}" class="text-slate-800 text-lg flex-1 outline-none border-b border-transparent hover:border-slate-300 focus:border-blue-500 focus:bg-yellow-50 transition-all rounded px-1 selectable-text" contenteditable="true" onblur="reTranslate('${id}', '${sLang}', '${tLang}')" onkeydown="handleEditKey(event, '${id}', '${sLang}', '${tLang}')" title="點擊編輯">${orig}</p><button id="btn-speak-orig-${id}" onclick="speakText('${escOrig}', '${sLang}')" class="speak-btn shrink-0 mt-1"><i class="fa-solid fa-volume-high"></i></button></div><div class="pt-2 border-t border-slate-100"><div class="flex items-start gap-2"><p class="trans-text text-base font-medium text-blue-700 flex-1 flex items-center gap-2 selectable-text"><i class="fa-solid fa-language text-green-500 text-xs"></i> ${trans}</p><button id="btn-tts-${id}" class="speak-btn shrink-0 mt-1 hidden"><i class="fa-solid fa-volume-high"></i></button></div></div><div class="mt-1 pt-1 bg-slate-50/50 rounded p-1 text-xs text-slate-400 flex gap-1 items-center"><i class="fa-solid fa-shield-halved"></i> 驗證: <span class="verify-text italic selectable-text">${verify}</span></div></div></div>`;
+            const html = `<div id="${id}" class="flex flex-col ${alignClass} fade-in-up w-full msg-bubble"><div class="max-w-[90%] ${bubbleColor} p-3 rounded-xl shadow-sm border border-slate-200"><div class="flex justify-between mb-1 opacity-60 text-xs"><span class="font-bold text-slate-500">${label}</span><span>${new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</span></div><div class="flex items-start gap-2 mb-2"><p id="orig-${id}" class="text-slate-800 text-lg flex-1 outline-none border-b border-transparent hover:border-slate-300 focus:border-blue-500 focus:bg-yellow-50 transition-all rounded px-1 selectable-text" contenteditable="true" onblur="reTranslate('${id}', '${sLang}', '${tLang}')" onkeydown="handleEditKey(event, '${id}', '${sLang}', '${tLang}')" title="點擊編輯">${orig}</p><button id="btn-speak-orig-${id}" onclick="speakText('${escOrig}', '${sLang}')" class="speak-btn shrink-0 mt-1"><i class="fa-solid fa-volume-high"></i></button></div><div class="pt-2 border-t border-slate-100"><div class="flex items-start gap-2"><p class="trans-text text-base font-medium text-blue-700 flex-1 flex items-center gap-2 selectable-text">${trans}</p><button id="btn-tts-${id}" class="speak-btn shrink-0 mt-1 hidden"><i class="fa-solid fa-volume-high"></i></button></div></div><div class="mt-1 pt-1 bg-slate-50/50 rounded p-1 text-xs text-slate-400 flex gap-1 items-center"><i class="fa-solid fa-shield-halved"></i> 驗證: <span class="verify-text italic selectable-text">${verify}</span></div></div></div>`;
             UI.stream.insertAdjacentHTML('beforeend', html); UI.container.scrollTop = UI.container.scrollHeight; return id;
         }
         function updateBubbleTrans(id, text, success, tLang) { const el = document.getElementById(id); if(!el) return; const p = el.querySelector('.trans-text'); p.innerHTML = text; p.className = success ? 'trans-text text-lg font-bold text-blue-700 flex-1 selectable-text' : 'trans-text text-base text-red-500 flex-1 selectable-text'; if (success) { const btn = document.getElementById(`btn-tts-${id}`); const escText = text.replace(/'/g, "\\'").replace(/"/g, '&quot;').replace(/\n/g, ' '); btn.setAttribute('onclick', `speakText('${escText}', '${tLang}')`); btn.classList.remove('hidden'); } }
         function updateBubbleVerify(id, text) { const el = document.getElementById(id); if(el) el.querySelector('.verify-text').innerText = text; }
         function handleEditKey(e, id, sLang, tLang) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); document.getElementById('orig-' + id).blur(); } }
-        async function reTranslate(id, sLang, tLang) { const origEl = document.getElementById('orig-' + id); if (!origEl) return; const newText = origEl.innerText.trim(); if (!newText) return; const speakBtn = document.getElementById('btn-speak-orig-' + id); if (speakBtn) { const escNewText = newText.replace(/'/g, "\\'").replace(/"/g, '&quot;'); speakBtn.setAttribute('onclick', `speakText('${escNewText}', '${sLang}')`); } const el = document.getElementById(id); el.querySelector('.trans-text').innerHTML = '...'; const transBtn = document.getElementById(`btn-tts-${id}`); if (transBtn) transBtn.classList.add('hidden'); try { const trans = await fetchTranslate(newText, sLang, tLang); updateBubbleTrans(id, trans, true, tLang); } catch (e) { updateBubbleTrans(id, "Err", false); } }
+        async function reTranslate(id, sLang, tLang) { 
+            const origEl = document.getElementById('orig-' + id); if (!origEl) return; 
+            const newText = origEl.innerText.trim(); if (!newText) return; 
+            TransQueue.add(newText, sLang, tLang, id); // 重試也加入佇列
+        }
         
         // Events & Bindings
         function switchMode(mode) { stopEverything(); App.mode = mode; if (mode === 'chat') { UI.tabs.chat.classList.add('active'); UI.tabs.meeting.classList.remove('active'); UI.ctrls.chat.classList.remove('hidden'); UI.ctrls.meeting.classList.add('hidden'); } else { UI.tabs.meeting.classList.add('active'); UI.tabs.chat.classList.remove('active'); UI.ctrls.meeting.classList.remove('hidden'); UI.ctrls.chat.classList.add('hidden'); updateLabels(); } }
