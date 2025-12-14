@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>ProTranslate v49 - 最終修復版</title>
+    <title>ProTranslate v50 - 每日額度偵測版</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src='https://unpkg.com/tesseract.js@v5/dist/tesseract.min.js'></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -42,7 +42,6 @@
         
         #btn-ptt { touch-action: none; -webkit-touch-callout: none; }
 
-        /* 會議模式按鈕樣式 */
         .meeting-active-src { background-color: #eff6ff !important; border-color: #2563eb !important; color: #1e40af !important; position: relative; }
         .meeting-active-src::after { content: ''; position: absolute; top: 10px; right: 10px; width: 8px; height: 8px; background: #2563eb; border-radius: 50%; animation: pulse-dot 1s infinite; }
         
@@ -54,38 +53,38 @@
         .tab-btn { opacity: 0.6; transition: all 0.2s; border-bottom: 3px solid transparent; }
         .tab-btn.active { opacity: 1; color: #2563eb; border-color: #2563eb; font-weight: bold; }
 
-        #swapBtn i { transition: transform 0.3s ease; }
-        
-        .speak-btn { opacity: 0.5; transition: all 0.2s; padding: 6px; border-radius: 50%; cursor: pointer; color: #475569; }
-        .speak-btn:hover, .speak-btn:active { opacity: 1; background-color: rgba(0,0,0,0.05); color: #2563eb; }
-
-        [contenteditable]:focus { outline: none; background-color: #fff; border-bottom: 1px dashed #94a3b8; }
-
         #ocr-overlay, #drag-overlay { backdrop-filter: blur(8px); }
         .drag-box { border: 4px dashed #60a5fa; background-color: rgba(239, 246, 255, 0.9); }
 
         /* Queue Indicator */
-        #queue-indicator { position: fixed; top: 70px; right: 10px; background: rgba(0,0,0,0.7); color: white; padding: 4px 8px; border-radius: 12px; font-size: 10px; z-index: 40; display: none; }
+        #queue-indicator { 
+            position: fixed; top: 70px; right: 10px; 
+            background: rgba(37, 99, 235, 0.9); color: white; 
+            padding: 6px 12px; border-radius: 20px; font-size: 11px; font-weight: bold;
+            z-index: 40; display: none; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
         /* Cooling Down Overlay */
-        #cooling-overlay { position: fixed; inset: 0; background: rgba(255,255,255,0.8); z-index: 60; display: none; flex-direction: column; align-items: center; justify-content: center; backdrop-filter: blur(2px); }
+        #cooling-overlay { position: fixed; inset: 0; background: rgba(255,255,255,0.9); z-index: 60; display: none; flex-direction: column; align-items: center; justify-content: center; backdrop-filter: blur(4px); }
     </style>
 </head>
 <body class="h-[100dvh] flex flex-col overflow-hidden text-slate-800 bg-[#f8fafc]">
 
-    <div id="queue-indicator"><i class="fa-solid fa-hourglass-half fa-spin mr-1"></i> 排隊中...</div>
+    <div id="queue-indicator"><i class="fa-solid fa-hourglass-half fa-spin mr-1"></i> 排隊處理中...</div>
 
     <div id="cooling-overlay">
-        <i class="fa-solid fa-temperature-arrow-down text-4xl text-blue-500 mb-2"></i>
-        <h3 class="text-xl font-bold text-slate-700">API 冷卻中</h3>
-        <p class="text-sm text-slate-500 mt-1">請求過於頻繁，請稍候...</p>
-        <div class="text-3xl font-bold text-blue-600 mt-4" id="cooling-timer">30</div>
+        <i class="fa-solid fa-triangle-exclamation text-5xl text-amber-500 mb-4 animate-bounce"></i>
+        <h3 class="text-2xl font-bold text-slate-800">API 頻率限制</h3>
+        <p class="text-base text-slate-600 mt-2 text-center px-6">觸發 Google 流量管制，正在自動冷卻...</p>
+        <p class="text-xs text-red-500 mt-1">若此畫面頻繁出現，代表您的 API Key 當日額度已滿</p>
+        <div class="text-4xl font-black text-blue-600 mt-6 font-mono" id="cooling-timer">30</div>
+        <p class="text-xs text-slate-400 mt-2">秒後恢復</p>
     </div>
 
     <div class="bg-white shadow-sm z-20 shrink-0">
         <div class="flex justify-between items-center px-4 py-3 border-b border-slate-100">
             <div class="flex items-center gap-2 text-blue-600 font-bold text-lg">
-                <i class="fa-solid fa-hand-holding-heart"></i>
-                <span>ProTranslate <span class="text-[10px] bg-indigo-100 text-indigo-700 px-1.5 rounded ml-1 align-top">v49 Fix</span></span>
+                <i class="fa-solid fa-robot"></i>
+                <span>ProTranslate <span class="text-[10px] bg-sky-100 text-sky-700 px-1.5 rounded ml-1 align-top">v50 Final</span></span>
             </div>
             <div class="flex items-center bg-slate-100 rounded-lg p-1 gap-1 text-sm">
                 <select id="sourceLang" class="bg-transparent font-bold text-slate-700 outline-none px-2 py-1 cursor-pointer w-24">
@@ -112,10 +111,10 @@
     <div id="main-container" class="flex-1 overflow-y-auto custom-scroll p-4 space-y-4 bg-[#f8fafc] pb-32 relative" onclick="closeKeyboard()">
         <div id="welcome-msg" class="flex flex-col items-center justify-center h-full text-slate-400 text-center opacity-60">
             <div class="relative mb-4">
-                <i class="fa-solid fa-wrench text-5xl text-indigo-400"></i>
+                <i class="fa-solid fa-shield-halved text-5xl text-sky-400"></i>
             </div>
-            <p class="text-sm font-medium">系統修復完成</p>
-            <p class="text-xs mt-2">已解決 429/404 錯誤</p>
+            <p class="text-sm font-medium">防護系統已啟動</p>
+            <p class="text-xs mt-2">智慧排隊 + 額度偵測</p>
         </div>
         <div id="message-stream" class="flex flex-col gap-4 pb-4"></div>
         <div id="speech-preview" class="hidden sticky bottom-2 mx-auto bg-slate-800/90 backdrop-blur text-white px-5 py-3 rounded-full shadow-lg text-sm max-w-[90%] text-center z-10 border border-slate-600/50">
@@ -223,18 +222,18 @@
                     if (trans.includes("429")) {
                         // 觸發全面冷卻
                         triggerCoolingDown();
-                        updateBubbleTrans(task.msgId, "暫停 (429)", false);
+                        updateBubbleTrans(task.msgId, "API 忙碌 (429)", false);
                         // 把任務放回開頭，等冷卻完再試
                         this.items.unshift(task); 
                     } else if (trans.includes("404")) {
-                         updateBubbleTrans(task.msgId, "模型錯誤", false);
-                    } else if (trans.includes("Error")) {
-                        updateBubbleTrans(task.msgId, "API Error", false);
+                         updateBubbleTrans(task.msgId, "API Key 或模型錯誤 (404)", false);
+                    } else if (trans.includes("Error") || trans.includes("連線錯誤") || trans.includes("API Key Error")) {
+                        updateBubbleTrans(task.msgId, trans, false);
                     } else {
                         updateBubbleTrans(task.msgId, trans.trim(), true, task.tLang);
                     }
                 } catch (e) {
-                    updateBubbleTrans(task.msgId, "Err", false);
+                    updateBubbleTrans(task.msgId, "內部錯誤", false);
                 }
 
                 // 只有在沒有觸發冷卻時才繼續
@@ -243,7 +242,7 @@
                     this.isProcessing = false;
                     this.process();
                 } else {
-                    this.isProcessing = false; // 停止處理，等待冷卻結束重啟
+                    this.isProcessing = false; 
                 }
             }
         };
@@ -251,7 +250,7 @@
         function triggerCoolingDown() {
             if(App.isCooling) return;
             App.isCooling = true;
-            stopEverything(); // 停止語音
+            stopEverything(); 
             UI.cooling.box.style.display = 'flex';
             let timeLeft = 30;
             UI.cooling.timer.innerText = timeLeft;
@@ -445,12 +444,12 @@
             TransQueue.add(text, sLang, tLang, msgId);
         }
 
-        // === 核心翻譯邏輯 (使用標準模型) ===
+        // === 核心翻譯邏輯 (標準模型) ===
         async function fetchTranslateAPI(text, s, t) {
             const API_KEY = "AIzaSyC08IGznw7IlTN3CXGblddj8lchmz1YMJA"; 
             if (!API_KEY) return "API Key Error";
 
-            // [FIX]: 回歸 gemini-1.5-flash (標準版)，解決 404 問題
+            // [FIX]: 使用 gemini-1.5-flash，這是目前最穩定的免費版模型
             const modelName = 'gemini-1.5-flash'; 
 
             const sCode = s.split('-')[0];
