@@ -401,17 +401,21 @@
             } catch (e) { updateBubbleTrans(msgId, "翻譯失敗", false); updateBubbleVerify(msgId, "---"); }
         }
 // === 修改後的 Gemini 翻譯函式 ===
+// === 修改後的 Gemini 翻譯函式 (已修復邏輯) ===
 async function fetchTranslate(text, s, t) {
-    // ⚠️ 請在此填入你的 Gemini API Key
+    // ⚠️ 你的 Gemini API Key
     const API_KEY = "AIzaSyC08IGznw7IlTN3CXGblddj8lchmz1YMJA"; 
 
-    // 如果沒有 Key，回傳錯誤提示
-    if (API_KEY === "AIzaSyC08IGznw7IlTN3CXGblddj8lchmz1YMJA") {
-        alert("請在程式碼中填入 Gemini API Key！");
-        return "API Key 未設定";
+    // ❌ 原本這裡的錯誤檢查邏輯造成了問題，我們把它刪除或註解掉
+    // if (API_KEY === "AIzaSyC08IGznw7IlTN3CXGblddj8lchmz1YMJA") { ... } 
+
+    // 簡單檢查一下是否有值即可
+    if (!API_KEY || API_KEY.length < 10) {
+        alert("API Key 似乎有誤，請檢查程式碼");
+        return "API Key 設定錯誤";
     }
 
-    // 將語言代碼轉換為 Gemini 看得懂的自然語言，提升準確度
+    // 將語言代碼轉換為 Gemini 看得懂的自然語言
     const langMap = {
         'zh-TW': 'Traditional Chinese (Taiwan)',
         'vi-VN': 'Vietnamese',
@@ -424,7 +428,7 @@ async function fetchTranslate(text, s, t) {
     const sourceLang = langMap[s] || s;
     const targetLang = langMap[t] || t;
 
-    // 設計 Prompt (提示詞)：要求它扮演專業翻譯，並只輸出結果
+    // 設計 Prompt
     const prompt = `You are a professional translator. Translate the following text from ${sourceLang} to ${targetLang}. 
     Output ONLY the translated text without any explanations, quotes, or notes.
     
@@ -444,18 +448,20 @@ async function fetchTranslate(text, s, t) {
                     parts: [{ text: prompt }]
                 }],
                 generationConfig: {
-                    temperature: 0.1, // 降低隨機性，讓翻譯更穩定
+                    temperature: 0.1,
                 }
             })
         });
 
         if (!response.ok) {
+            // 這裡可以印出更多錯誤資訊方便除錯
+            const errData = await response.json();
+            console.error("Gemini API Error Details:", errData);
             throw new Error(`HTTP error! status: ${response.status}`);
         }
 
         const data = await response.json();
         
-        // 解析 Gemini 的回傳結構
         if (data.candidates && data.candidates[0].content && data.candidates[0].content.parts) {
             return data.candidates[0].content.parts[0].text.trim();
         } else {
@@ -464,7 +470,6 @@ async function fetchTranslate(text, s, t) {
 
     } catch (e) {
         console.error("Gemini API Error:", e);
-        // 如果 Gemini 失敗，可以在這裡寫 fallback 回原本的 Google Translate 邏輯
         return "連線錯誤";
     }
 }
@@ -526,5 +531,6 @@ async function fetchTranslate(text, s, t) {
     </script>
 </body>
 </html>
+
 
 
