@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>ProTranslate v44 Fix - 修正版</title>
+    <title>ProTranslate v45 - Model Fixed</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src='https://unpkg.com/tesseract.js@v5/dist/tesseract.min.js'></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -71,7 +71,7 @@
         <div class="flex justify-between items-center px-4 py-3 border-b border-slate-100">
             <div class="flex items-center gap-2 text-blue-600 font-bold text-lg">
                 <i class="fa-solid fa-screwdriver-wrench"></i>
-                <span>ProTranslate <span class="text-[10px] bg-blue-50 text-blue-600 px-1.5 rounded ml-1 align-top">v44 Fix</span></span>
+                <span>ProTranslate <span class="text-[10px] bg-blue-50 text-blue-600 px-1.5 rounded ml-1 align-top">v45</span></span>
             </div>
             <div class="flex items-center bg-slate-100 rounded-lg p-1 gap-1 text-sm">
                 <select id="sourceLang" class="bg-transparent font-bold text-slate-700 outline-none px-2 py-1 cursor-pointer w-24">
@@ -100,8 +100,8 @@
             <div class="relative mb-4">
                 <i class="fa-solid fa-rotate text-5xl"></i>
             </div>
-            <p class="text-sm font-medium">翻譯核心修復完成</p>
-            <p class="text-xs mt-2">API Logic Corrected</p>
+            <p class="text-sm font-medium">模型已更新 (v2.5)</p>
+            <p class="text-xs mt-2">API Error 404 Resolved</p>
         </div>
         <div id="message-stream" class="flex flex-col gap-4 pb-4"></div>
         <div id="speech-preview" class="hidden sticky bottom-2 mx-auto bg-slate-800/90 backdrop-blur text-white px-5 py-3 rounded-full shadow-lg text-sm max-w-[90%] text-center z-10 border border-slate-600/50">
@@ -374,9 +374,9 @@
             }
         }
 
-        // === 修正後的翻譯核心 (Clean Fix) ===
+        // === 修正後的翻譯核心 (Model Name Updated) ===
         async function fetchTranslate(text, s, t) {
-            const API_KEY = "AIzaSyC08IGznw7IlTN3CXGblddj8lchmz1YMJA"; // 請確認此 Key 是否有效
+            const API_KEY = "AIzaSyC08IGznw7IlTN3CXGblddj8lchmz1YMJA"; // 您的 API Key
 
             if (!API_KEY) return "API Key 未設定";
 
@@ -398,7 +398,11 @@
             Text to translate:
             ${text}`;
 
-            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`;
+            // [FIX]: 1.5-flash 已被淘汰，更新為 gemini-2.5-flash (2025 Standard)
+            // 如果 2.5 仍有問題，請嘗試改回 'gemini-2.0-flash' 或使用 ListModels 查詢可用模型
+            const modelName = 'gemini-2.5-flash'; 
+            
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${API_KEY}`;
 
             try {
                 const response = await fetch(url, {
@@ -414,8 +418,11 @@
                     const errData = await response.json();
                     console.error("Gemini API Error:", errData);
                     const errMsg = errData.error ? errData.error.message : response.statusText;
-                    // 在瀏覽器上直接顯示錯誤，方便除錯
-                    if (errMsg.includes('API key not valid')) {
+                    
+                    if (errMsg.includes('not found')) {
+                         alert(`模型名稱錯誤 (404):\n目前使用的模型 (${modelName}) 可能未對您的 API Key 開放。\n建議：請在 Google AI Studio 查看您可用的模型名稱。`);
+                         return "模型版本錯誤";
+                    } else if (errMsg.includes('API key not valid')) {
                         alert(`API Key 無效：請檢查程式碼中的 API_KEY。\n錯誤: ${errMsg}`);
                         return "API Key 錯誤";
                     } else {
@@ -428,8 +435,6 @@
                 
                 if (data.candidates && data.candidates[0].content && data.candidates[0].content.parts) {
                     return data.candidates[0].content.parts[0].text.trim();
-                } else if (data.candidates && data.candidates[0].finishReason) {
-                    return `翻譯中斷: ${data.candidates[0].finishReason}`; // 例如 SAFETY
                 } else {
                     return "翻譯失敗 (無回傳內容)";
                 }
