@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>ProTranslate v46 - 極速版</title>
+    <title>ProTranslate v47 - 穩定抗斷線版</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src='https://unpkg.com/tesseract.js@v5/dist/tesseract.min.js'></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -70,8 +70,8 @@
     <div class="bg-white shadow-sm z-20 shrink-0">
         <div class="flex justify-between items-center px-4 py-3 border-b border-slate-100">
             <div class="flex items-center gap-2 text-blue-600 font-bold text-lg">
-                <i class="fa-solid fa-bolt"></i>
-                <span>ProTranslate <span class="text-[10px] bg-amber-100 text-amber-700 px-1.5 rounded ml-1 align-top">v46 Speed</span></span>
+                <i class="fa-solid fa-shield-cat"></i>
+                <span>ProTranslate <span class="text-[10px] bg-green-100 text-green-700 px-1.5 rounded ml-1 align-top">v47 Stable</span></span>
             </div>
             <div class="flex items-center bg-slate-100 rounded-lg p-1 gap-1 text-sm">
                 <select id="sourceLang" class="bg-transparent font-bold text-slate-700 outline-none px-2 py-1 cursor-pointer w-24">
@@ -98,10 +98,10 @@
     <div id="main-container" class="flex-1 overflow-y-auto custom-scroll p-4 space-y-4 bg-[#f8fafc] pb-32 relative" onclick="closeKeyboard()">
         <div id="welcome-msg" class="flex flex-col items-center justify-center h-full text-slate-400 text-center opacity-60">
             <div class="relative mb-4">
-                <i class="fa-solid fa-bolt text-5xl text-amber-400"></i>
+                <i class="fa-solid fa-shield-cat text-5xl text-green-500"></i>
             </div>
-            <p class="text-sm font-medium">極速模式已啟動</p>
-            <p class="text-xs mt-2">Gemini 2.0 Flash (Exp)</p>
+            <p class="text-sm font-medium">穩定模式 (抗429錯誤)</p>
+            <p class="text-xs mt-2">驗證功能已停用以節省額度</p>
         </div>
         <div id="message-stream" class="flex flex-col gap-4 pb-4"></div>
         <div id="speech-preview" class="hidden sticky bottom-2 mx-auto bg-slate-800/90 backdrop-blur text-white px-5 py-3 rounded-full shadow-lg text-sm max-w-[90%] text-center z-10 border border-slate-600/50">
@@ -157,7 +157,7 @@
     </div>
 
     <div id="toast" class="fixed top-6 left-1/2 -translate-x-1/2 bg-slate-800/90 backdrop-blur text-white px-4 py-2 rounded-full shadow-lg text-sm hidden z-50 transition-opacity flex items-center gap-2">
-        <i class="fa-solid fa-bolt"></i><span id="toast-msg">通知</span>
+        <i class="fa-solid fa-circle-exclamation"></i><span id="toast-msg">通知</span>
     </div>
 
     <script>
@@ -351,43 +351,50 @@
             if (App.mode === 'chat') { sLang = getVal(true); tLang = getVal(false); align = 'right'; }
             else { if (App.meetingTrack === 'src') { sLang = getVal(true); tLang = getVal(false); align = 'right'; } else { sLang = getVal(false); tLang = getVal(true); align = 'left'; } }
             
-            const msgId = addBubble(text, '...', '...', align, sLang, tLang);
+            // 預設驗證狀態為 "停用"
+            const msgId = addBubble(text, '...', '已停用', align, sLang, tLang);
             try {
                 // 1. 快速翻譯
                 const trans = await fetchTranslate(text, sLang, tLang);
                 
-                if (trans.includes("錯誤") || trans.includes("Error") || trans.includes("失敗")) {
+                if (trans.includes("429")) {
+                     updateBubbleTrans(msgId, "系統忙碌 (429)", false);
+                     showToast("請求過快，請稍候...");
+                } else if (trans.includes("錯誤") || trans.includes("Error") || trans.includes("失敗")) {
                     updateBubbleTrans(msgId, trans.trim(), false);
-                    updateBubbleVerify(msgId, "X");
                 } else {
                     updateBubbleTrans(msgId, trans.trim(), true, tLang); 
                     
-                    // 2. 背景驗證 (不等待它)
-                    fetchTranslate(trans, tLang, sLang).then(back => {
-                        updateBubbleVerify(msgId, back);
-                    }).catch(() => updateBubbleVerify(msgId, "?"));
+                    // 2. 為了節省額度，預設不執行回翻驗證
+                    // 如需開啟，請自行將下方註解取消，但會增加 429 機率
+                    /*
+                    setTimeout(() => {
+                        fetchTranslate(trans, tLang, sLang).then(back => {
+                            updateBubbleVerify(msgId, back);
+                        }).catch(() => updateBubbleVerify(msgId, "?"));
+                    }, 1000);
+                    */
                 }
             } catch (e) { 
                 updateBubbleTrans(msgId, "Error", false); 
             }
         }
 
-        // === 極速翻譯核心 (v46 Speed) ===
+        // === 抗斷線翻譯核心 (v47 Stable) ===
         async function fetchTranslate(text, s, t) {
-            const API_KEY = "AIzaSyC08IGznw7IlTN3CXGblddj8lchmz1YMJA"; // 已保留
+            const API_KEY = "AIzaSyC08IGznw7IlTN3CXGblddj8lchmz1YMJA"; 
 
             if (!API_KEY) return "API Key Error";
 
-            // 簡化語言對應以加速
             const sCode = s.split('-')[0];
             const tCode = t.split('-')[0];
             const langName = { 'zh': 'Chinese', 'vi': 'Vietnamese', 'en': 'English' };
 
-            // 極簡 Prompt 減少 Token 消耗
             const prompt = `Translate to ${langName[tCode] || tCode}:\n${text}`;
 
-            // 使用目前最快的實驗性模型
-            const modelName = 'gemini-2.0-flash-exp'; 
+            // [FIX] 改用 1.5-flash-8b (High RPM, Low Latency) 專門解決 429 問題
+            // 如果這個模型還是 429，代表您的 API Key 額度已徹底用盡，需更換 Key
+            const modelName = 'gemini-1.5-flash-8b'; 
             
             const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${API_KEY}`;
 
@@ -399,16 +406,16 @@
                         contents: [{ parts: [{ text: prompt }] }],
                         generationConfig: { 
                             temperature: 0.1,
-                            maxOutputTokens: 1000 // 限制輸出長度以防卡住
+                            maxOutputTokens: 800
                         }
                     })
                 });
 
                 if (!response.ok) {
+                    if (response.status === 429) return "API 忙碌 (429)";
+                    if (response.status === 404) return "模型錯誤 (404)";
                     const errData = await response.json();
                     const errMsg = errData.error ? errData.error.message : response.statusText;
-                    if (errMsg.includes('not found')) return "模型過期/不支援";
-                    if (errMsg.includes('key')) return "Key 無效";
                     return `Error ${response.status}`;
                 }
 
@@ -432,13 +439,13 @@
             const bubbleColor = align === 'right' ? 'bg-white border-r-4 border-blue-500' : 'bg-white border-l-4 border-orange-400'; 
             const label = sLang.toUpperCase().replace('-VN','').replace('-TW','').replace('-US','');
             const escOrig = orig.replace(/'/g, "\\'").replace(/"/g, '&quot;').replace(/\n/g, ' ');
-            const html = `<div id="${id}" class="flex flex-col ${alignClass} fade-in-up w-full msg-bubble"><div class="max-w-[90%] ${bubbleColor} p-3 rounded-xl shadow-sm border border-slate-200"><div class="flex justify-between mb-1 opacity-60 text-xs"><span class="font-bold text-slate-500">${label}</span><span>${new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</span></div><div class="flex items-start gap-2 mb-2"><p id="orig-${id}" class="text-slate-800 text-lg flex-1 outline-none border-b border-transparent hover:border-slate-300 focus:border-blue-500 focus:bg-yellow-50 transition-all rounded px-1 selectable-text" contenteditable="true" onblur="reTranslate('${id}', '${sLang}', '${tLang}')" onkeydown="handleEditKey(event, '${id}', '${sLang}', '${tLang}')" title="點擊編輯">${orig}</p><button id="btn-speak-orig-${id}" onclick="speakText('${escOrig}', '${sLang}')" class="speak-btn shrink-0 mt-1"><i class="fa-solid fa-volume-high"></i></button></div><div class="pt-2 border-t border-slate-100"><div class="flex items-start gap-2"><p class="trans-text text-base font-medium text-blue-700 flex-1 flex items-center gap-2 selectable-text"><i class="fa-solid fa-bolt text-amber-500 animate-pulse text-xs"></i> ${trans}</p><button id="btn-tts-${id}" class="speak-btn shrink-0 mt-1 hidden"><i class="fa-solid fa-volume-high"></i></button></div></div><div class="mt-1 pt-1 bg-slate-50/50 rounded p-1 text-xs text-slate-500 flex gap-1 items-center"><i class="fa-solid fa-check-double"></i> 驗證: <span class="verify-text italic selectable-text">${verify}</span></div></div></div>`;
+            const html = `<div id="${id}" class="flex flex-col ${alignClass} fade-in-up w-full msg-bubble"><div class="max-w-[90%] ${bubbleColor} p-3 rounded-xl shadow-sm border border-slate-200"><div class="flex justify-between mb-1 opacity-60 text-xs"><span class="font-bold text-slate-500">${label}</span><span>${new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</span></div><div class="flex items-start gap-2 mb-2"><p id="orig-${id}" class="text-slate-800 text-lg flex-1 outline-none border-b border-transparent hover:border-slate-300 focus:border-blue-500 focus:bg-yellow-50 transition-all rounded px-1 selectable-text" contenteditable="true" onblur="reTranslate('${id}', '${sLang}', '${tLang}')" onkeydown="handleEditKey(event, '${id}', '${sLang}', '${tLang}')" title="點擊編輯">${orig}</p><button id="btn-speak-orig-${id}" onclick="speakText('${escOrig}', '${sLang}')" class="speak-btn shrink-0 mt-1"><i class="fa-solid fa-volume-high"></i></button></div><div class="pt-2 border-t border-slate-100"><div class="flex items-start gap-2"><p class="trans-text text-base font-medium text-blue-700 flex-1 flex items-center gap-2 selectable-text"><i class="fa-solid fa-language text-green-500 text-xs"></i> ${trans}</p><button id="btn-tts-${id}" class="speak-btn shrink-0 mt-1 hidden"><i class="fa-solid fa-volume-high"></i></button></div></div><div class="mt-1 pt-1 bg-slate-50/50 rounded p-1 text-xs text-slate-400 flex gap-1 items-center"><i class="fa-solid fa-shield-halved"></i> 驗證: <span class="verify-text italic selectable-text">${verify}</span></div></div></div>`;
             UI.stream.insertAdjacentHTML('beforeend', html); UI.container.scrollTop = UI.container.scrollHeight; return id;
         }
         function updateBubbleTrans(id, text, success, tLang) { const el = document.getElementById(id); if(!el) return; const p = el.querySelector('.trans-text'); p.innerHTML = text; p.className = success ? 'trans-text text-lg font-bold text-blue-700 flex-1 selectable-text' : 'trans-text text-base text-red-500 flex-1 selectable-text'; if (success) { const btn = document.getElementById(`btn-tts-${id}`); const escText = text.replace(/'/g, "\\'").replace(/"/g, '&quot;').replace(/\n/g, ' '); btn.setAttribute('onclick', `speakText('${escText}', '${tLang}')`); btn.classList.remove('hidden'); } }
         function updateBubbleVerify(id, text) { const el = document.getElementById(id); if(el) el.querySelector('.verify-text').innerText = text; }
         function handleEditKey(e, id, sLang, tLang) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); document.getElementById('orig-' + id).blur(); } }
-        async function reTranslate(id, sLang, tLang) { const origEl = document.getElementById('orig-' + id); if (!origEl) return; const newText = origEl.innerText.trim(); if (!newText) return; const speakBtn = document.getElementById('btn-speak-orig-' + id); if (speakBtn) { const escNewText = newText.replace(/'/g, "\\'").replace(/"/g, '&quot;'); speakBtn.setAttribute('onclick', `speakText('${escNewText}', '${sLang}')`); } const el = document.getElementById(id); el.querySelector('.trans-text').innerHTML = '...'; el.querySelector('.verify-text').innerText = '...'; const transBtn = document.getElementById(`btn-tts-${id}`); if (transBtn) transBtn.classList.add('hidden'); try { const trans = await fetchTranslate(newText, sLang, tLang); updateBubbleTrans(id, trans, true, tLang); if (trans && !trans.includes("錯誤")) { const back = await fetchTranslate(trans, tLang, sLang); updateBubbleVerify(id, back); } } catch (e) { updateBubbleTrans(id, "Err", false); } }
+        async function reTranslate(id, sLang, tLang) { const origEl = document.getElementById('orig-' + id); if (!origEl) return; const newText = origEl.innerText.trim(); if (!newText) return; const speakBtn = document.getElementById('btn-speak-orig-' + id); if (speakBtn) { const escNewText = newText.replace(/'/g, "\\'").replace(/"/g, '&quot;'); speakBtn.setAttribute('onclick', `speakText('${escNewText}', '${sLang}')`); } const el = document.getElementById(id); el.querySelector('.trans-text').innerHTML = '...'; const transBtn = document.getElementById(`btn-tts-${id}`); if (transBtn) transBtn.classList.add('hidden'); try { const trans = await fetchTranslate(newText, sLang, tLang); updateBubbleTrans(id, trans, true, tLang); } catch (e) { updateBubbleTrans(id, "Err", false); } }
         
         // Events & Bindings
         function switchMode(mode) { stopEverything(); App.mode = mode; if (mode === 'chat') { UI.tabs.chat.classList.add('active'); UI.tabs.meeting.classList.remove('active'); UI.ctrls.chat.classList.remove('hidden'); UI.ctrls.meeting.classList.add('hidden'); } else { UI.tabs.meeting.classList.add('active'); UI.tabs.chat.classList.remove('active'); UI.ctrls.meeting.classList.remove('hidden'); UI.ctrls.chat.classList.add('hidden'); updateLabels(); } }
